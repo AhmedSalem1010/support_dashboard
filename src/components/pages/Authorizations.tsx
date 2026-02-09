@@ -66,32 +66,32 @@ export function Authorizations() {
     {
       key: 'authNumber',
       label: 'رقم التفويض',
-      render: (value: string) => (
+      render: (value: unknown) => (
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
             <FileText className="w-4 h-4 text-blue-600" />
           </div>
-          <span className="font-semibold">{value}</span>
+          <span className="font-semibold">{String(value)}</span>
         </div>
       ),
     },
     {
       key: 'vehicle',
       label: 'المركبة',
-      render: (value: string) => (
+      render: (value: unknown) => (
         <div className="flex items-center gap-2">
           <Car className="w-4 h-4 text-gray-500" />
-          <span>{value}</span>
+          <span>{String(value)}</span>
         </div>
       ),
     },
     {
       key: 'driver',
       label: 'السائق',
-      render: (value: string) => (
+      render: (value: unknown) => (
         <div className="flex items-center gap-2">
           <User className="w-4 h-4 text-gray-500" />
-          <span>{value}</span>
+          <span>{String(value)}</span>
         </div>
       ),
     },
@@ -102,10 +102,10 @@ export function Authorizations() {
     {
       key: 'startDate',
       label: 'تاريخ البداية',
-      render: (value: string) => (
+      render: (value: unknown) => (
         <div className="flex items-center gap-2">
           <Calendar className="w-4 h-4 text-gray-500" />
-          <span>{value}</span>
+          <span>{String(value)}</span>
         </div>
       ),
     },
@@ -116,15 +116,15 @@ export function Authorizations() {
     {
       key: 'type',
       label: 'النوع',
-      render: (value: string) => (
-        <Badge variant={value === 'تم + محلي' ? 'info' : 'default'}>{value}</Badge>
+      render: (value: unknown) => (
+        <Badge variant={String(value) === 'تم + محلي' ? 'info' : 'default'}>{String(value)}</Badge>
       ),
     },
     {
       key: 'status',
       label: 'الحالة',
-      render: (value: string) => (
-        <Badge variant={value === 'ساري' ? 'success' : 'default'}>{value}</Badge>
+      render: (value: unknown) => (
+        <Badge variant={String(value) === 'ساري' ? 'success' : 'default'}>{String(value)}</Badge>
       ),
     },
   ];

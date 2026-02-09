@@ -83,12 +83,12 @@ export function Vehicles() {
     {
       key: 'plateNumber',
       label: 'رقم اللوحة',
-      render: (value: string) => (
+      render: (value: unknown) => (
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
             <Car className="w-4 h-4 text-blue-600" />
           </div>
-          <span className="font-semibold">{value}</span>
+          <span className="font-semibold">{String(value)}</span>
         </div>
       ),
     },
@@ -111,16 +111,18 @@ export function Vehicles() {
     {
       key: 'insuranceStatus',
       label: 'حالة التأمين',
-      render: (value: string) => (
-        <Badge variant={value === 'ساري' ? 'success' : 'warning'}>{value}</Badge>
-      ),
+      render: (value: unknown) => {
+        const v = String(value);
+        return <Badge variant={v === 'ساري' ? 'success' : 'warning'}>{v}</Badge>;
+      },
     },
     {
       key: 'status',
       label: 'الحالة',
-      render: (value: string) => {
-        const variant = value === 'متاح' ? 'success' : value === 'مفوض' ? 'info' : 'warning';
-        return <Badge variant={variant}>{value}</Badge>;
+      render: (value: unknown) => {
+        const v = String(value);
+        const variant = v === 'متاح' ? 'success' : v === 'مفوض' ? 'info' : 'warning';
+        return <Badge variant={variant}>{v}</Badge>;
       },
     },
   ];
