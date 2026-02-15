@@ -21,14 +21,13 @@ interface VehicleInfo {
 }
 
 interface EquipmentChecklist {
-  vacuum: boolean;
-  polisher: boolean;
-  ladder: boolean;
-  bucket: boolean;
-  mop: boolean;
-  broom: boolean;
-  squeegee: boolean;
-  waterTank: boolean;
+  bakium: boolean;
+  galandar: boolean;
+  blicher: boolean;
+  leMay: boolean;
+  leShoft: boolean;
+  ladderBig: boolean;
+  ladderSmall: boolean;
 }
 
 export default function Inspection() {
@@ -40,14 +39,13 @@ export default function Inspection() {
   
   // Equipment checklist
   const [equipment, setEquipment] = useState<EquipmentChecklist>({
-    vacuum: false,
-    polisher: false,
-    ladder: false,
-    bucket: false,
-    mop: false,
-    broom: false,
-    squeegee: false,
-    waterTank: false,
+    bakium: false,
+    galandar: false,
+    blicher: false,
+    leMay: false,
+    leShoft: false,
+    ladderBig: false,
+    ladderSmall: false,
   });
 
   // Media files
@@ -154,68 +152,68 @@ export default function Inspection() {
     }
 
     console.log('Submitting inspection:', Object.fromEntries(formData));
-    alert('تم إرسال التشييك بنجاح!');
+    alert('تم إرسال الفحص بنجاح!');
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">التشييك</h1>
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">الفحص</h1>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* نوع التشييك */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">نوع التشييك</h2>
-          <div className="grid grid-cols-2 gap-4">
+      <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+        {/* نوع الفحص */}
+        <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3 sm:mb-4">نوع الفحص</h2>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <button
               type="button"
               onClick={() => setInspectionType('vehicle')}
-              className={`p-4 border-2 rounded-lg transition-all ${
+              className={`p-3 sm:p-4 border-2 rounded-lg transition-all ${
                 inspectionType === 'vehicle'
-                  ? 'border-blue-600 bg-blue-50 text-blue-700'
+                  ? 'border-[#09b9b5] bg-[#effefa] text-[#09b9b5]'
                   : 'border-gray-300 hover:border-gray-400'
               }`}
             >
               <div className="text-center">
-                <div className="text-2xl mb-2">🚗</div>
-                <div className="font-semibold">تشييك المركبة</div>
+                <div className="text-xl sm:text-2xl mb-1 sm:mb-2">🚗</div>
+                <div className="text-sm sm:text-base font-semibold">فحص المركبة</div>
               </div>
             </button>
             <button
               type="button"
               onClick={() => setInspectionType('accommodation')}
-              className={`p-4 border-2 rounded-lg transition-all ${
+              className={`p-3 sm:p-4 border-2 rounded-lg transition-all ${
                 inspectionType === 'accommodation'
-                  ? 'border-blue-600 bg-blue-50 text-blue-700'
+                  ? 'border-[#09b9b5] bg-[#effefa] text-[#09b9b5]'
                   : 'border-gray-300 hover:border-gray-400'
               }`}
             >
               <div className="text-center">
-                <div className="text-2xl mb-2">🏠</div>
-                <div className="font-semibold">تشييك السكن</div>
+                <div className="text-xl sm:text-2xl mb-1 sm:mb-2">🏠</div>
+                <div className="text-sm sm:text-base font-semibold">فحص السكن</div>
               </div>
             </button>
           </div>
         </div>
 
-        {/* حقول تشييك المركبة */}
+        {/* حقول فحص المركبة */}
         {inspectionType === 'vehicle' && (
           <>
             {/* اختيار المركبة */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">معلومات المركبة</h2>
+            <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3 sm:mb-4">معلومات المركبة</h2>
               
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                     اختر المركبة <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={selectedVehicle}
                     onChange={(e) => handleVehicleSelect(e.target.value)}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]"
                   >
                     <option value="">-- اختر المركبة --</option>
                     {mockVehicles.map((vehicle) => (
@@ -228,41 +226,41 @@ export default function Inspection() {
 
                 {/* معلومات المركبة والسائق */}
                 {vehicleInfo && (
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                    <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gray-50 rounded-lg p-3 sm:p-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
                       <div>
-                        <span className="text-sm text-gray-600">رقم اللوحة:</span>
-                        <p className="font-semibold">{vehicleInfo.plateNumber}</p>
+                        <span className="text-xs sm:text-sm text-gray-600">رقم اللوحة:</span>
+                        <p className="text-sm sm:text-base font-semibold">{vehicleInfo.plateNumber}</p>
                       </div>
                       <div>
-                        <span className="text-sm text-gray-600">الصانع:</span>
-                        <p className="font-semibold">{vehicleInfo.manufacturer}</p>
+                        <span className="text-xs sm:text-sm text-gray-600">الصانع:</span>
+                        <p className="text-sm sm:text-base font-semibold">{vehicleInfo.manufacturer}</p>
                       </div>
                       <div>
-                        <span className="text-sm text-gray-600">الموديل:</span>
-                        <p className="font-semibold">{vehicleInfo.model}</p>
+                        <span className="text-xs sm:text-sm text-gray-600">الموديل:</span>
+                        <p className="text-sm sm:text-base font-semibold">{vehicleInfo.model}</p>
                       </div>
                       <div>
-                        <span className="text-sm text-gray-600">السنة:</span>
-                        <p className="font-semibold">{vehicleInfo.year}</p>
+                        <span className="text-xs sm:text-sm text-gray-600">السنة:</span>
+                        <p className="text-sm sm:text-base font-semibold">{vehicleInfo.year}</p>
                       </div>
                     </div>
 
                     {vehicleInfo.driver && (
                       <div className="border-t pt-3 mt-3">
-                        <h3 className="font-semibold text-gray-800 mb-2">معلومات السائق</h3>
-                        <div className="grid grid-cols-2 gap-4">
+                        <h3 className="text-sm sm:text-base font-semibold text-gray-800 mb-2">معلومات السائق</h3>
+                        <div className="grid grid-cols-2 gap-3 sm:gap-4">
                           <div>
-                            <span className="text-sm text-gray-600">الاسم:</span>
-                            <p className="font-semibold">{vehicleInfo.driver.name}</p>
+                            <span className="text-xs sm:text-sm text-gray-600">الاسم:</span>
+                            <p className="text-sm sm:text-base font-semibold">{vehicleInfo.driver.name}</p>
                           </div>
                           <div>
-                            <span className="text-sm text-gray-600">الهاتف:</span>
-                            <p className="font-semibold">{vehicleInfo.driver.phone}</p>
+                            <span className="text-xs sm:text-sm text-gray-600">الهاتف:</span>
+                            <p className="text-sm sm:text-base font-semibold">{vehicleInfo.driver.phone}</p>
                           </div>
                           <div className="col-span-2">
-                            <span className="text-sm text-gray-600">الفريق:</span>
-                            <p className="font-semibold">{vehicleInfo.driver.team}</p>
+                            <span className="text-xs sm:text-sm text-gray-600">الفريق:</span>
+                            <p className="text-sm sm:text-base font-semibold">{vehicleInfo.driver.team}</p>
                           </div>
                         </div>
                       </div>
@@ -273,36 +271,35 @@ export default function Inspection() {
             </div>
 
             {/* المعدات */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">المعدات</h2>
+            <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3 sm:mb-4">المعدات</h2>
               
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-4">
                 {Object.entries(equipment).map(([key, value]) => (
                   <button
                     key={key}
                     type="button"
                     onClick={() => handleEquipmentChange(key as keyof EquipmentChecklist)}
-                    className={`p-4 border-2 rounded-lg transition-all ${
+                    className={`p-2 sm:p-4 border-2 rounded-lg transition-all ${
                       value
-                        ? 'border-green-500 bg-green-50'
+                        ? 'border-[#00a287] bg-[#effefa]'
                         : 'border-gray-300 hover:border-gray-400'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">
-                        {key === 'vacuum' && 'مكنسة كهربائية'}
-                        {key === 'polisher' && 'آلة جلي'}
-                        {key === 'ladder' && 'سلم'}
-                        {key === 'bucket' && 'دلو'}
-                        {key === 'mop' && 'ممسحة'}
-                        {key === 'broom' && 'مكنسة'}
-                        {key === 'squeegee' && 'ماسح زجاج'}
-                        {key === 'waterTank' && 'خزان ماء'}
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-xs sm:text-sm font-medium">
+                        {key === 'bakium' && 'باكيوم'}
+                        {key === 'galandar' && 'قلندر'}
+                        {key === 'blicher' && 'بليشر'}
+                        {key === 'leMay' && 'لي ماء'}
+                        {key === 'leShoft' && 'لي شفط'}
+                        {key === 'ladderBig' && 'سلم كبير'}
+                        {key === 'ladderSmall' && 'سلم صغير'}
                       </span>
                       {value ? (
-                        <CheckCircle className="w-5 h-5 text-green-600" />
+                        <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" />
                       ) : (
-                        <XCircle className="w-5 h-5 text-gray-400" />
+                        <XCircle className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 flex-shrink-0" />
                       )}
                     </div>
                   </button>
@@ -311,13 +308,13 @@ export default function Inspection() {
             </div>
 
             {/* الوسائط - المركبة */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">صور وفيديو المركبة</h2>
+            <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3 sm:mb-4">صور وفيديو المركبة</h2>
               
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 {/* صور المركبة */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                     <Camera className="w-4 h-4 inline ml-1" />
                     صور المركبة (يمكن إضافة عدة صور)
                   </label>
@@ -326,24 +323,24 @@ export default function Inspection() {
                     accept="image/*"
                     multiple
                     onChange={(e) => handleImageUpload(e, 'vehicle')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
                   />
                   
                   {vehicleImages.length > 0 && (
-                    <div className="mt-3 grid grid-cols-3 gap-3">
+                    <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                       {vehicleImages.map((image, index) => (
                         <div key={index} className="relative">
                           <img
                             src={URL.createObjectURL(image)}
                             alt={`صورة ${index + 1}`}
-                            className="w-full h-32 object-cover rounded-lg"
+                            className="w-full h-24 sm:h-32 object-cover rounded-lg"
                           />
                           <button
                             type="button"
                             onClick={() => removeImage(index, 'vehicle')}
                             className="absolute top-1 left-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
                           >
-                            <XCircle className="w-4 h-4" />
+                            <XCircle className="w-3 h-3 sm:w-4 sm:h-4" />
                           </button>
                           <p className="text-xs text-gray-600 mt-1 truncate">{image.name}</p>
                         </div>
@@ -354,7 +351,7 @@ export default function Inspection() {
 
                 {/* فيديو المركبة */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                     <Video className="w-4 h-4 inline ml-1" />
                     فيديو المركبة
                   </label>
@@ -362,17 +359,17 @@ export default function Inspection() {
                     type="file"
                     accept="video/*"
                     onChange={(e) => handleVideoUpload(e, 'vehicle')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
                   />
                   {vehicleVideo && (
-                    <div className="mt-2 flex items-center justify-between bg-blue-50 p-3 rounded-lg">
-                      <span className="text-sm text-gray-700">{vehicleVideo.name}</span>
+                    <div className="mt-2 flex items-center justify-between bg-[#effefa] p-2 sm:p-3 rounded-lg">
+                      <span className="text-xs sm:text-sm text-gray-700 truncate">{vehicleVideo.name}</span>
                       <button
                         type="button"
                         onClick={() => setVehicleVideo(null)}
-                        className="text-red-500 hover:text-red-700"
+                        className="text-red-500 hover:text-red-700 flex-shrink-0 ml-2"
                       >
-                        <XCircle className="w-5 h-5" />
+                        <XCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                       </button>
                     </div>
                   )}
@@ -380,7 +377,7 @@ export default function Inspection() {
 
                 {/* فيديو المعدات والعمال */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                     <Video className="w-4 h-4 inline ml-1" />
                     فيديو المعدات والعمال
                   </label>
@@ -388,17 +385,17 @@ export default function Inspection() {
                     type="file"
                     accept="video/*"
                     onChange={(e) => handleVideoUpload(e, 'equipment')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
                   />
                   {equipmentWorkerVideo && (
-                    <div className="mt-2 flex items-center justify-between bg-blue-50 p-3 rounded-lg">
-                      <span className="text-sm text-gray-700">{equipmentWorkerVideo.name}</span>
+                    <div className="mt-2 flex items-center justify-between bg-[#effefa] p-2 sm:p-3 rounded-lg">
+                      <span className="text-xs sm:text-sm text-gray-700 truncate">{equipmentWorkerVideo.name}</span>
                       <button
                         type="button"
                         onClick={() => setEquipmentWorkerVideo(null)}
-                        className="text-red-500 hover:text-red-700"
+                        className="text-red-500 hover:text-red-700 flex-shrink-0 ml-2"
                       >
-                        <XCircle className="w-5 h-5" />
+                        <XCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                       </button>
                     </div>
                   )}
@@ -408,15 +405,15 @@ export default function Inspection() {
           </>
         )}
 
-        {/* حقول تشييك السكن */}
+        {/* حقول فحص السكن */}
         {inspectionType === 'accommodation' && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">صور وفيديو السكن</h2>
+          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3 sm:mb-4">صور وفيديو السكن</h2>
             
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* صور السكن */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                   <Camera className="w-4 h-4 inline ml-1" />
                   صور السكن (يمكن إضافة عدة صور)
                 </label>
@@ -425,24 +422,24 @@ export default function Inspection() {
                   accept="image/*"
                   multiple
                   onChange={(e) => handleImageUpload(e, 'accommodation')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
                 />
                 
                 {accommodationImages.length > 0 && (
-                  <div className="mt-3 grid grid-cols-3 gap-3">
+                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                     {accommodationImages.map((image, index) => (
                       <div key={index} className="relative">
                         <img
                           src={URL.createObjectURL(image)}
                           alt={`صورة ${index + 1}`}
-                          className="w-full h-32 object-cover rounded-lg"
+                          className="w-full h-24 sm:h-32 object-cover rounded-lg"
                         />
                         <button
                           type="button"
                           onClick={() => removeImage(index, 'accommodation')}
                           className="absolute top-1 left-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
                         >
-                          <XCircle className="w-4 h-4" />
+                          <XCircle className="w-3 h-3 sm:w-4 sm:h-4" />
                         </button>
                         <p className="text-xs text-gray-600 mt-1 truncate">{image.name}</p>
                       </div>
@@ -453,7 +450,7 @@ export default function Inspection() {
 
               {/* فيديو السكن */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                   <Video className="w-4 h-4 inline ml-1" />
                   فيديو السكن
                 </label>
@@ -461,17 +458,17 @@ export default function Inspection() {
                   type="file"
                   accept="video/*"
                   onChange={(e) => handleVideoUpload(e, 'accommodation')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
                 />
                 {accommodationVideo && (
-                  <div className="mt-2 flex items-center justify-between bg-blue-50 p-3 rounded-lg">
-                    <span className="text-sm text-gray-700">{accommodationVideo.name}</span>
+                  <div className="mt-2 flex items-center justify-between bg-[#effefa] p-2 sm:p-3 rounded-lg">
+                    <span className="text-xs sm:text-sm text-gray-700 truncate">{accommodationVideo.name}</span>
                     <button
                       type="button"
                       onClick={() => setAccommodationVideo(null)}
-                      className="text-red-500 hover:text-red-700"
+                      className="text-red-500 hover:text-red-700 flex-shrink-0 ml-2"
                     >
-                      <XCircle className="w-5 h-5" />
+                      <XCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
                   </div>
                 )}
@@ -481,10 +478,10 @@ export default function Inspection() {
         )}
 
         {/* المشرف والملاحظات */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">معلومات إضافية</h2>
+        <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3 sm:mb-4">معلومات إضافية</h2>
           
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             <Input
               label="المشرف المسؤول"
               type="text"
@@ -495,28 +492,29 @@ export default function Inspection() {
             />
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                 الملاحظات
               </label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="أدخل أي ملاحظات إضافية..."
-                rows={4}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={3}
+                className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]"
               />
             </div>
           </div>
         </div>
 
         {/* أزرار الحفظ */}
-        <div className="flex justify-end gap-3">
-          <Button variant="outline" type="button">
+        <div className="flex justify-end gap-2 sm:gap-3">
+          <Button variant="outline" type="button" className="text-sm">
             إلغاء
           </Button>
-          <Button variant="success" type="submit">
-            <Upload className="w-4 h-4 ml-2" />
-            حفظ التشييك
+          <Button variant="success" type="submit" className="text-sm">
+            <Upload className="w-4 h-4 ml-1 sm:ml-2" />
+            <span className="hidden sm:inline">حفظ الفحص</span>
+            <span className="sm:hidden">حفظ</span>
           </Button>
         </div>
       </form>

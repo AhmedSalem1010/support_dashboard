@@ -1,17 +1,19 @@
 import type { Metadata } from 'next';
-import { Tajawal } from 'next/font/google';
+import { IBM_Plex_Sans_Arabic } from 'next/font/google';
 import './globals.css';
 
-const tajawal = Tajawal({
+// استخدام خط IBM Plex Sans Arabic كبديل احترافي
+// يمكن استبداله بـ ExpoArabic المحلي عند توفره في /public/fonts/
+const arabicFont = IBM_Plex_Sans_Arabic({
   subsets: ['arabic', 'latin'],
-  weight: ['300', '400', '500', '700', '800', '900'],
-  variable: '--font-tajawal',
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-expo',
   display: 'swap',
 });
 
 export const metadata: Metadata = {
-  title: 'نظام المساندة ودعم الفرق - Support and Team Support System',
-  description: 'Support and Team Support System',
+  title: 'CleanLife - نظام المساندة ودعم الفرق',
+  description: 'نظام إدارة المركبات والفرق - CleanLife Dashboard',
 };
 
 export default function RootLayout({
@@ -20,8 +22,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ar" dir="rtl" className={tajawal.variable}>
-      <body className={`${tajawal.className} antialiased`}>
+    <html lang="ar" dir="rtl" className={arabicFont.variable}>
+      <body className={`${arabicFont.className} antialiased`}>
         {children}
       </body>
     </html>

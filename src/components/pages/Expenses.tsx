@@ -33,12 +33,12 @@ export function Expenses() {
   ];
   const maxMonth = Math.max(...monthData.map((m) => m.value));
 
+  // CleanLife Design System - Expenses
   const expensesByType = [
-    { label: 'وقود', amount: '28,500', color: 'bg-green-500', percent: 74 },
-    { label: 'زيت', amount: '6,200', color: 'bg-amber-500', percent: 16 },
-    { label: 'أخرى', amount: '3,700', color: 'bg-gray-400', percent: 10 },
+    { label: 'وقود', amount: '28,500', color: 'bg-[#09b9b5]', percent: 74 },
+    { label: 'زيت', amount: '6,200', color: 'bg-[#f57c00]', percent: 16 },
+    { label: 'أخرى', amount: '3,700', color: 'bg-[#617c96]', percent: 10 },
   ];
-  const totalForBars = 38500;
   const maxType = Math.max(...expensesByType.map((e) => e.percent));
 
   const columns = [
@@ -47,7 +47,7 @@ export function Expenses() {
       label: 'المركبة',
       render: (value: unknown) => (
         <div className="flex items-center gap-2">
-          <Car className="w-4 h-4 text-gray-500" />
+          <Car className="w-4 h-4 text-[#617c96]" />
           <span className="font-medium">{String(value)}</span>
         </div>
       ),
@@ -57,7 +57,7 @@ export function Expenses() {
       label: 'نوع المصروف',
       render: (value: unknown) => {
         const v = String(value);
-        const style = v === 'وقود' ? 'bg-blue-100 text-blue-800' : v === 'زيت' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-800';
+        const style = v === 'وقود' ? 'bg-[#effefa] text-[#09b9b5]' : v === 'زيت' ? 'bg-[#fff3e0] text-[#f57c00]' : 'bg-gray-100 text-gray-800';
         return <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${style}`}>{v}</span>;
       },
     },
@@ -66,7 +66,7 @@ export function Expenses() {
       label: 'المبلغ',
       render: (value: unknown) => (
         <div className="flex items-center gap-1">
-          <DollarSign className="w-4 h-4 text-gray-500" />
+          <DollarSign className="w-4 h-4 text-[#617c96]" />
           <span className="font-medium">{String(value)} ريال</span>
         </div>
       ),
@@ -76,7 +76,7 @@ export function Expenses() {
       label: 'التاريخ',
       render: (value: unknown) => (
         <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-gray-500" />
+          <Calendar className="w-4 h-4 text-[#617c96]" />
           <span>{String(value)}</span>
         </div>
       ),
@@ -85,64 +85,65 @@ export function Expenses() {
       key: 'invoice',
       label: 'الفاتورة',
       render: (value: unknown) => (
-        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">{String(value)}</span>
+        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-[#effefa] text-[#00a287]">{String(value)}</span>
       ),
     },
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">المصاريف التشغيلية</h1>
-          <p className="text-gray-600">إدارة مصاريف الوقود والزيت والمصاريف الأخرى</p>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">المصاريف التشغيلية</h1>
+          <p className="text-sm sm:text-base text-gray-600">إدارة مصاريف الوقود والزيت والمصاريف الأخرى</p>
         </div>
-        <Button variant="primary" onClick={() => setShowModal(true)}>
-          <Plus className="w-4 h-4 ml-2" />
-          إضافة مصروف
+        <Button variant="primary" onClick={() => setShowModal(true)} className="text-sm self-start sm:self-auto">
+          <Plus className="w-4 h-4 ml-1 sm:ml-2" />
+          <span className="hidden sm:inline">إضافة مصروف</span>
+          <span className="sm:hidden">إضافة</span>
         </Button>
       </div>
 
-      {/* بطاقات الملخص */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-r-4 border-blue-500">
+      {/* KPI Cards - Card component with border-r-4 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <Card className="border-r-4 border-[#09b9b5]">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">إجمالي المصاريف</p>
-              <p className="text-2xl font-bold text-gray-900">38,400 ريال</p>
-              <p className="text-xs text-gray-500 mt-0.5">هذا الشهر</p>
+              <p className="text-xs sm:text-sm text-[#617c96] mb-1">إجمالي المصاريف</p>
+              <p className="text-lg sm:text-xl font-bold text-gray-900">38,400 ريال</p>
+              <p className="text-xs text-[#617c96] mt-0.5 hidden sm:block">هذا الشهر</p>
             </div>
-            <DollarSign className="w-10 h-10 text-blue-500" />
+            <DollarSign className="w-5 h-5 text-[#617c96] flex-shrink-0" />
           </div>
         </Card>
-        <Card className="border-r-4 border-green-500">
+        <Card className="border-r-4 border-[#00a287]">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">الوقود</p>
-              <p className="text-2xl font-bold text-gray-900">28,500 ريال</p>
-              <p className="text-xs text-green-600 mt-0.5">74% من الإجمالي</p>
+              <p className="text-xs sm:text-sm text-[#617c96] mb-1">الوقود</p>
+              <p className="text-lg sm:text-xl font-bold text-gray-900">28,500 ريال</p>
+              <p className="text-xs text-[#00a287] mt-0.5 hidden sm:block">74% من الإجمالي</p>
             </div>
-            <DollarSign className="w-10 h-10 text-green-500" />
+            <DollarSign className="w-5 h-5 text-[#617c96] flex-shrink-0" />
           </div>
         </Card>
-        <Card className="border-r-4 border-amber-500">
+        <Card className="border-r-4 border-[#f57c00]">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">الزيت</p>
-              <p className="text-2xl font-bold text-gray-900">6,200 ريال</p>
-              <p className="text-xs text-amber-600 mt-0.5">16% من الإجمالي</p>
+              <p className="text-xs sm:text-sm text-[#617c96] mb-1">الزيت</p>
+              <p className="text-lg sm:text-xl font-bold text-gray-900">6,200 ريال</p>
+              <p className="text-xs text-[#f57c00] mt-0.5 hidden sm:block">16% من الإجمالي</p>
             </div>
-            <DollarSign className="w-10 h-10 text-amber-500" />
+            <DollarSign className="w-5 h-5 text-[#617c96] flex-shrink-0" />
           </div>
         </Card>
-        <Card className="border-r-4 border-gray-500">
+        <Card className="border-r-4 border-[#617c96]">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">أخرى</p>
-              <p className="text-2xl font-bold text-gray-900">3,700 ريال</p>
-              <p className="text-xs text-gray-500 mt-0.5">10% من الإجمالي</p>
+              <p className="text-xs sm:text-sm text-[#617c96] mb-1">أخرى</p>
+              <p className="text-lg sm:text-xl font-bold text-gray-900">3,700 ريال</p>
+              <p className="text-xs text-[#617c96] mt-0.5 hidden sm:block">10% من الإجمالي</p>
             </div>
-            <DollarSign className="w-10 h-10 text-gray-500" />
+            <DollarSign className="w-5 h-5 text-[#617c96] flex-shrink-0" />
           </div>
         </Card>
       </div>
@@ -153,7 +154,7 @@ export function Expenses() {
           <div className="h-56 flex flex-col justify-end">
             <div className="flex-1 min-h-[120px] flex items-end justify-around gap-2 pb-8 pt-2">
               {monthData.map((item) => (
-                <div key={item.month} className="flex-1 max-w-[48px] bg-blue-500 rounded-t" style={{ height: `${(item.value / maxMonth) * 100}%` }} />
+                <div key={item.month} className="flex-1 max-w-[48px] bg-[#09b9b5] rounded-t" style={{ height: `${(item.value / maxMonth) * 100}%` }} />
               ))}
             </div>
             <div className="flex justify-around gap-1 text-xs text-gray-500 border-t pt-2 mt-1">
@@ -195,7 +196,7 @@ export function Expenses() {
             <form onSubmit={(e) => { e.preventDefault(); setShowModal(false); }} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">المركبة</label>
-                <select value={formData.vehicleId} onChange={(e) => setFormData({ ...formData, vehicleId: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                <select value={formData.vehicleId} onChange={(e) => setFormData({ ...formData, vehicleId: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]" required>
                   <option value="">اختر المركبة</option>
                   <option value="1">ABC 1234</option>
                   <option value="2">XYZ 5678</option>
@@ -204,7 +205,7 @@ export function Expenses() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">نوع المصروف</label>
-                <select value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]">
                   <option value="fuel">وقود</option>
                   <option value="oil">زيت</option>
                   <option value="maintenance">صيانة</option>
@@ -213,15 +214,15 @@ export function Expenses() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">المبلغ (ريال)</label>
-                <input type="number" min="0" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} required className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input type="number" min="0" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} required className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">التاريخ</label>
-                <input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} required className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} required className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">الوصف</label>
-                <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="وصف المصروف (اختياري)" />
+                <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]" placeholder="وصف المصروف (اختياري)" />
               </div>
               <div className="flex justify-end gap-3 pt-4">
                 <Button type="button" variant="outline" onClick={() => setShowModal(false)}>إلغاء</Button>

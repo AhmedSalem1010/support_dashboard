@@ -26,16 +26,17 @@ export function Users() {
     { id: 3, name: 'عبدالله محمود', email: 'abdullah@example.com', role: 'سائق', phone: '0551112233', status: 'غير نشط' },
   ];
 
+  // CleanLife Design System - Users
   const columns = [
     {
       key: 'name',
       label: 'الاسم',
       render: (value: unknown) => (
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-            <User className="w-4 h-4 text-blue-600" />
+          <div className="w-8 h-8 bg-[#effefa] rounded-lg flex items-center justify-center">
+            <User className="w-4 h-4 text-[#09b9b5]" />
           </div>
-          <span className="font-semibold">{String(value)}</span>
+          <span className="font-semibold text-gray-900">{String(value)}</span>
         </div>
       ),
     },
@@ -44,8 +45,8 @@ export function Users() {
       label: 'البريد الإلكتروني',
       render: (value: unknown) => (
         <div className="flex items-center gap-2">
-          <Mail className="w-4 h-4 text-gray-500" />
-          <span>{String(value)}</span>
+          <Mail className="w-4 h-4 text-[#617c96]" />
+          <span className="text-[#4d647c]">{String(value)}</span>
         </div>
       ),
     },
@@ -61,60 +62,70 @@ export function Users() {
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">المستخدمين</h1>
-          <p className="text-gray-600">إدارة المستخدمين والصلاحيات</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">المستخدمين</h1>
+          <p className="text-sm text-[#617c96]">إدارة المستخدمين والصلاحيات</p>
         </div>
-        <div className="flex gap-3">
-          <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
+        <div className="flex gap-2 sm:gap-3">
+          <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="text-sm">
             تصفية
           </Button>
-          <Button variant="primary" onClick={() => setShowModal(true)}>
-            <Plus className="w-4 h-4 ml-2" />
-            إضافة مستخدم
+          <Button variant="primary" onClick={() => setShowModal(true)} className="text-sm">
+            <Plus className="w-4 h-4 ml-1 sm:ml-2" />
+            <span className="hidden sm:inline">إضافة مستخدم</span>
+            <span className="sm:hidden">إضافة</span>
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-r-4 border-blue-500">
+      {/* KPI Cards - CleanLife Theme */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md hover:border-[#09b9b5] transition-all duration-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">إجمالي المستخدمين</p>
-              <p className="text-3xl font-bold text-gray-900">24</p>
+              <p className="text-xs sm:text-sm text-[#617c96] mb-1">إجمالي المستخدمين</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">24</p>
             </div>
-            <UsersIcon className="w-10 h-10 text-blue-500" />
+            <div className="w-10 h-10 bg-[#effefa] rounded-lg flex items-center justify-center flex-shrink-0">
+              <UsersIcon className="w-5 h-5 text-[#09b9b5]" />
+            </div>
           </div>
-        </Card>
-        <Card className="border-r-4 border-green-500">
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md hover:border-[#00a287] transition-all duration-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">السائقين</p>
-              <p className="text-3xl font-bold text-gray-900">18</p>
+              <p className="text-xs sm:text-sm text-[#617c96] mb-1">السائقين</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">18</p>
             </div>
-            <User className="w-10 h-10 text-green-500" />
+            <div className="w-10 h-10 bg-[#effefa] rounded-lg flex items-center justify-center flex-shrink-0">
+              <User className="w-5 h-5 text-[#00a287]" />
+            </div>
           </div>
-        </Card>
-        <Card className="border-r-4 border-amber-500">
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md hover:border-[#f57c00] transition-all duration-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">المشرفين</p>
-              <p className="text-3xl font-bold text-gray-900">4</p>
+              <p className="text-xs sm:text-sm text-[#617c96] mb-1">المشرفين</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">4</p>
             </div>
-            <Shield className="w-10 h-10 text-amber-500" />
+            <div className="w-10 h-10 bg-[#fff3e0] rounded-lg flex items-center justify-center flex-shrink-0">
+              <Shield className="w-5 h-5 text-[#f57c00]" />
+            </div>
           </div>
-        </Card>
-        <Card className="border-r-4 border-gray-500">
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md hover:border-[#1976d2] transition-all duration-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">النشطين</p>
-              <p className="text-3xl font-bold text-gray-900">22</p>
+              <p className="text-xs sm:text-sm text-[#617c96] mb-1">النشطين</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">22</p>
             </div>
-            <User className="w-10 h-10 text-gray-500" />
+            <div className="w-10 h-10 bg-[#e3f2fd] rounded-lg flex items-center justify-center flex-shrink-0">
+              <User className="w-5 h-5 text-[#1976d2]" />
+            </div>
           </div>
-        </Card>
+        </div>
       </div>
 
       {showFilters && (
@@ -124,7 +135,7 @@ export function Users() {
             <Input label="البريد الإلكتروني" placeholder="البريد الإلكتروني" />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">الدور</label>
-              <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]">
                 <option value="">الكل</option>
                 <option value="driver">سائق</option>
                 <option value="supervisor">مشرف</option>
@@ -152,7 +163,7 @@ export function Users() {
               <Input label="الهاتف" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">الدور</label>
-                <select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]">
                   <option value="driver">سائق</option>
                   <option value="supervisor">مشرف</option>
                   <option value="admin">مدير</option>
@@ -160,7 +171,7 @@ export function Users() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">الحالة</label>
-                <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]">
                   <option value="active">نشط</option>
                   <option value="inactive">غير نشط</option>
                 </select>

@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
-import { Header } from '@/components/layout/Header';
 import { Dashboard } from '@/components/pages/Dashboard';
 import { Vehicles } from '@/components/pages/Vehicles';
 import { Users } from '@/components/pages/Users';
@@ -15,6 +14,28 @@ import { FinancialReports } from '@/components/pages/FinancialReports';
 
 export default function HomePage() {
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setSidebarOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (sidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [sidebarOpen]);
 
   const renderPage = () => {
     switch (currentPage) {
@@ -42,14 +63,17 @@ export default function HomePage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
-      <div className="flex-1 flex flex-col">
-        <Header />
-        <main className="flex-1 p-6 overflow-auto">
-          {renderPage()}
-        </main>
-      </div>
+    <div className="flex flex-col min-h-screen bg-gray-50">
+      <Sidebar 
+        currentPage={currentPage} 
+        onPageChange={setCurrentPage}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onMenuClick={() => setSidebarOpen(true)}
+      />
+      <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-auto">
+        {renderPage()}
+      </main>
     </div>
   );
 }

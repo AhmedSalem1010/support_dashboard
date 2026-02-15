@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Plus, FileText, User, Car, Calendar, Package } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Plus, FileText, User, Car, Calendar, Package, Search, Filter, Download, X, Eye, Edit, Trash2, CheckCircle, AlertCircle, Clock, TrendingUp, Users, Shield, RefreshCw } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Table } from '@/components/ui/Table';
@@ -15,9 +15,24 @@ function addDaysToDate(dateStr: string, days: number): string {
   return date.toISOString().split('T')[0];
 }
 
+function getDaysRemaining(endDate: string): number {
+  const today = new Date();
+  const end = new Date(endDate);
+  const diff = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  return diff;
+}
+
 export function Authorizations() {
   const [showModal, setShowModal] = useState(false);
-  const [workersCount, setWorkersCount] = useState<string>('one'); // one, two, none
+  const [selectedAuth, setSelectedAuth] = useState<any>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [currentStep, setCurrentStep] = useState(1);
+  
+  const [workersCount, setWorkersCount] = useState<string>('one');
   const [authorizationDays, setAuthorizationDays] = useState<number>(0);
   const [startDate, setStartDate] = useState<string>('');
 
@@ -28,6 +43,7 @@ export function Authorizations() {
       id: 1,
       authNumber: 'AUTH-2024-001',
       vehicle: 'ABC 1234',
+      vehicleModel: 'تويوتا كامري',
       driver: 'محمد أحمد',
       supervisor: 'خالد محمد',
       startDate: '2024-01-01',
@@ -35,11 +51,14 @@ export function Authorizations() {
       type: 'تم + محلي',
       status: 'ساري',
       tammAuthorized: 'محمد أحمد',
+      workersCount: 2,
+      equipment: { bleacher: 2, vacuum: 1, bigLadder: 1 },
     },
     {
       id: 2,
       authNumber: 'AUTH-2024-002',
       vehicle: 'XYZ 5678',
+      vehicleModel: 'هوندا أكورد',
       driver: 'عبدالله سعيد',
       supervisor: 'أحمد علي',
       startDate: '2024-01-15',
@@ -47,389 +66,1087 @@ export function Authorizations() {
       type: 'محلي فقط',
       status: 'ساري',
       tammAuthorized: '-',
+      workersCount: 1,
+      equipment: { bleacher: 1, vacuum: 1, bigLadder: 0 },
     },
     {
       id: 3,
       authNumber: 'AUTH-2024-003',
       vehicle: 'DEF 9012',
+      vehicleModel: 'نيسان التيما',
       driver: 'سعيد محمود',
       supervisor: 'خالد محمد',
       startDate: '2023-12-01',
-      endDate: '2024-01-01',
+      endDate: '2024-02-15',
       type: 'تم + محلي',
       status: 'منتهي',
       tammAuthorized: 'سعيد محمود',
+      workersCount: 2,
+      equipment: { bleacher: 2, vacuum: 2, bigLadder: 1 },
+    },
+    {
+      id: 4,
+      authNumber: 'AUTH-2024-004',
+      vehicle: 'GHI 3456',
+      vehicleModel: 'فورد إكسبلورر',
+      driver: 'أحمد عبدالله',
+      supervisor: 'محمد سعيد',
+      startDate: '2024-02-01',
+      endDate: '2024-03-01',
+      type: 'محلي فقط',
+      status: 'قريب الانتهاء',
+      tammAuthorized: '-',
+      workersCount: 1,
+      equipment: { bleacher: 1, vacuum: 0, bigLadder: 1 },
     },
   ];
+
+  // Filter authorizations
+  const filteredAuthorizations = useMemo(() => {
+    return authorizations.filter(auth => {
+      const matchesSearch = 
+        auth.authNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        auth.vehicle.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        auth.driver.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesStatus = filterStatus === '' || auth.status === filterStatus;
+      const matchesType = filterType === '' || auth.type === filterType;
+      
+      return matchesSearch && matchesStatus && matchesType;
+    });
+  }, [searchTerm, filterStatus, filterType]);
+
+  // Statistics
+  const stats = {
+    active: authorizations.filter(a => a.status === 'ساري').length,
+    expiringSoon: authorizations.filter(a => a.status === 'قريب الانتهاء').length,
+    expired: authorizations.filter(a => a.status === 'منتهي').length,
+    total: authorizations.length,
+  };
 
   const columns = [
     {
       key: 'authNumber',
       label: 'رقم التفويض',
-      render: (value: unknown) => (
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-            <FileText className="w-4 h-4 text-blue-600" />
+      render: (value: unknown, row: any) => (
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className="w-12 h-12 bg-gradient-to-br from-[#09b9b5]/10 to-[#09b9b5]/20 rounded-xl flex items-center justify-center border border-[#09b9b5]/20">
+              <FileText className="w-5 h-5 text-[#09b9b5]" />
+            </div>
+            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-md">
+              <CheckCircle className="w-3 h-3 text-green-500" />
+            </div>
           </div>
-          <span className="font-semibold">{String(value)}</span>
+          <div>
+            <p className="font-bold text-gray-900">{String(value)}</p>
+            <p className="text-xs text-gray-500">{row.vehicleModel}</p>
+          </div>
         </div>
       ),
     },
     {
       key: 'vehicle',
       label: 'المركبة',
-      render: (value: unknown) => (
+      render: (value: unknown, row: any) => (
         <div className="flex items-center gap-2">
-          <Car className="w-4 h-4 text-gray-500" />
-          <span>{String(value)}</span>
+          <div className="p-2 bg-blue-50 rounded-lg">
+            <Car className="w-4 h-4 text-blue-600" />
+          </div>
+          <span className="font-semibold">{String(value)}</span>
         </div>
       ),
     },
     {
       key: 'driver',
-      label: 'السائق',
-      render: (value: unknown) => (
-        <div className="flex items-center gap-2">
-          <User className="w-4 h-4 text-gray-500" />
-          <span>{String(value)}</span>
+      label: 'السائق والمشرف',
+      render: (value: unknown, row: any) => (
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <User className="w-4 h-4 text-gray-400" />
+            <span className="text-sm font-medium">{String(value)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Shield className="w-4 h-4 text-gray-400" />
+            <span className="text-xs text-gray-500">{row.supervisor}</span>
+          </div>
         </div>
       ),
-    },
-    {
-      key: 'supervisor',
-      label: 'المشرف',
     },
     {
       key: 'startDate',
-      label: 'تاريخ البداية',
-      render: (value: unknown) => (
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-gray-500" />
-          <span>{String(value)}</span>
-        </div>
-      ),
-    },
-    {
-      key: 'endDate',
-      label: 'تاريخ الانتهاء',
+      label: 'الفترة',
+      render: (value: unknown, row: any) => {
+        const daysRemaining = getDaysRemaining(row.endDate);
+        return (
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-gray-400" />
+              <span className="text-sm">{String(value)}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-gray-400" />
+              <span className="text-xs text-gray-500">{row.endDate}</span>
+            </div>
+            {daysRemaining > 0 && (
+              <p className="text-xs text-gray-500">متبقي {daysRemaining} يوم</p>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'type',
       label: 'النوع',
-      render: (value: unknown) => (
-        <Badge variant={String(value) === 'تم + محلي' ? 'info' : 'default'}>{String(value)}</Badge>
+      render: (value: unknown, row: any) => (
+        <div className="space-y-1">
+          <Badge variant={String(value) === 'تم + محلي' ? 'info' : 'default'}>
+            {String(value)}
+          </Badge>
+          <div className="flex items-center gap-1">
+            <Users className="w-3 h-3 text-gray-400" />
+            <span className="text-xs text-gray-500">{row.workersCount} عمال</span>
+          </div>
+        </div>
       ),
     },
     {
       key: 'status',
       label: 'الحالة',
-      render: (value: unknown) => (
-        <Badge variant={String(value) === 'ساري' ? 'success' : 'default'}>{String(value)}</Badge>
+      render: (value: unknown) => {
+        const v = String(value);
+        const variant = v === 'ساري' ? 'success' : v === 'قريب الانتهاء' ? 'warning' : 'default';
+        const icon = v === 'ساري' ? CheckCircle : v === 'قريب الانتهاء' ? AlertCircle : X;
+        const Icon = icon;
+        return (
+          <Badge variant={variant} className="flex items-center gap-1.5">
+            <Icon className="w-3.5 h-3.5" />
+            {v}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: 'actions',
+      label: 'الإجراءات',
+      render: (_: unknown, row: any) => (
+        <div className="flex items-center gap-1">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedAuth(row);
+            }}
+            className="p-2 hover:bg-blue-50 rounded-lg transition-colors group"
+            title="عرض التفاصيل"
+          >
+            <Eye className="w-4 h-4 text-gray-400 group-hover:text-blue-600" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              // Edit logic
+            }}
+            className="p-2 hover:bg-green-50 rounded-lg transition-colors group"
+            title="تعديل"
+          >
+            <Edit className="w-4 h-4 text-gray-400 group-hover:text-green-600" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              // Renew logic
+            }}
+            className="p-2 hover:bg-purple-50 rounded-lg transition-colors group"
+            title="تجديد"
+          >
+            <RefreshCw className="w-4 h-4 text-gray-400 group-hover:text-purple-600" />
+          </button>
+        </div>
       ),
     },
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6 animate-fadeIn">
+      {/* Header Section */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">إدارة التفويض</h1>
-          <p className="text-gray-600">تفويض المركبات وجرد العهدة</p>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2.5 bg-gradient-to-br from-[#09b9b5] to-[#0da9a5] rounded-xl shadow-lg">
+              <FileText className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">إدارة التفويض</h1>
+              <p className="text-sm text-[#617c96]">تفويض المركبات وجرد العهدة - {authorizations.length} تفويض</p>
+            </div>
+          </div>
         </div>
-        <Button variant="primary" onClick={() => setShowModal(true)}>
-          <Plus className="w-4 h-4 ml-2" />
-          تفويض جديد
-        </Button>
+        
+        <div className="flex flex-wrap gap-2 sm:gap-3">
+          {/* View Toggle */}
+          <div className="flex bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`px-3 py-1.5 rounded-md text-sm transition-all ${
+                viewMode === 'table' 
+                  ? 'bg-white shadow-sm text-[#09b9b5] font-semibold' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              جدول
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`px-3 py-1.5 rounded-md text-sm transition-all ${
+                viewMode === 'grid' 
+                  ? 'bg-white shadow-sm text-[#09b9b5] font-semibold' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              بطاقات
+            </button>
+          </div>
+
+          <Button 
+            variant="outline" 
+            onClick={() => setShowFilters(!showFilters)} 
+            className="text-sm relative"
+          >
+            <Filter className="w-4 h-4 ml-1 sm:ml-2" />
+            <span className="hidden xs:inline">تصفية</span>
+            {(filterStatus || filterType) && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 bg-[#09b9b5] rounded-full"></span>
+            )}
+          </Button>
+          
+          <Button variant="secondary" className="text-sm group">
+            <Download className="w-4 h-4 ml-1 sm:ml-2 group-hover:translate-y-0.5 transition-transform" />
+            <span className="hidden xs:inline">تصدير</span>
+          </Button>
+          
+          <Button 
+            variant="primary" 
+            onClick={() => {
+              setShowModal(true);
+              setCurrentStep(1);
+            }} 
+            className="text-sm group relative overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform"></div>
+            <Plus className="w-4 h-4 ml-1 sm:ml-2 relative z-10 group-hover:rotate-90 transition-transform" />
+            <span className="hidden sm:inline relative z-10">تفويض جديد</span>
+            <span className="sm:hidden relative z-10">تفويض</span>
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border-r-4 border-green-500">
+      {/* KPI Cards - Enhanced */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <Card className="border-r-4 border-[#09b9b5] hover:shadow-xl transition-all duration-300 group cursor-pointer">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">التفويضات السارية</p>
-              <p className="text-3xl font-bold text-gray-900">28</p>
+              <p className="text-xs sm:text-sm text-gray-600 mb-1 flex items-center gap-1.5">
+                <span className="w-2 h-2 bg-[#09b9b5] rounded-full animate-pulse"></span>
+                إجمالي التفويضات
+              </p>
+              <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 group-hover:scale-110 transition-transform">
+                {stats.total}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">جميع الحالات</p>
             </div>
-            <FileText className="w-10 h-10 text-green-500" />
+            <div className="relative">
+              <div className="absolute inset-0 bg-[#09b9b5]/20 rounded-full blur-xl group-hover:blur-2xl transition-all"></div>
+              <FileText className="w-8 h-8 sm:w-10 sm:h-10 text-[#09b9b5] flex-shrink-0 relative z-10 group-hover:scale-110 transition-all" />
+            </div>
           </div>
         </Card>
-        <Card className="border-r-4 border-yellow-500">
+
+        <Card className="border-r-4 border-[#00a287] hover:shadow-xl transition-all duration-300 group cursor-pointer">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">تنتهي خلال 30 يوم</p>
-              <p className="text-3xl font-bold text-gray-900">5</p>
+              <p className="text-xs sm:text-sm text-gray-600 mb-1 flex items-center gap-1.5">
+                <span className="w-2 h-2 bg-[#00a287] rounded-full animate-pulse"></span>
+                التفويضات السارية
+              </p>
+              <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 group-hover:scale-110 transition-transform">
+                {stats.active}
+              </p>
+              <p className="text-xs text-green-600 mt-1 font-semibold">
+                {Math.round((stats.active / stats.total) * 100)}% نشطة
+              </p>
             </div>
-            <Calendar className="w-10 h-10 text-yellow-500" />
+            <div className="relative">
+              <div className="absolute inset-0 bg-[#00a287]/20 rounded-full blur-xl group-hover:blur-2xl transition-all"></div>
+              <CheckCircle className="w-8 h-8 sm:w-10 sm:h-10 text-[#00a287] flex-shrink-0 relative z-10 group-hover:scale-110 transition-all" />
+            </div>
           </div>
         </Card>
-        <Card className="border-r-4 border-red-500">
+
+        <Card className="border-r-4 border-[#f57c00] hover:shadow-xl transition-all duration-300 group cursor-pointer">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">منتهية</p>
-              <p className="text-3xl font-bold text-gray-900">12</p>
+              <p className="text-xs sm:text-sm text-gray-600 mb-1 flex items-center gap-1.5">
+                <span className="w-2 h-2 bg-[#f57c00] rounded-full animate-pulse"></span>
+                قريبة من الانتهاء
+              </p>
+              <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 group-hover:scale-110 transition-transform">
+                {stats.expiringSoon}
+              </p>
+              <p className="text-xs text-orange-600 mt-1 font-semibold">تحتاج تجديد</p>
             </div>
-            <FileText className="w-10 h-10 text-red-500" />
+            <div className="relative">
+              <div className="absolute inset-0 bg-[#f57c00]/20 rounded-full blur-xl group-hover:blur-2xl transition-all"></div>
+              <AlertCircle className="w-8 h-8 sm:w-10 sm:h-10 text-[#f57c00] flex-shrink-0 relative z-10 group-hover:scale-110 group-hover:rotate-12 transition-all" />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="border-r-4 border-[#d32f2f] hover:shadow-xl transition-all duration-300 group cursor-pointer">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs sm:text-sm text-gray-600 mb-1 flex items-center gap-1.5">
+                <span className="w-2 h-2 bg-[#d32f2f] rounded-full animate-pulse"></span>
+                منتهية
+              </p>
+              <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 group-hover:scale-110 transition-transform">
+                {stats.expired}
+              </p>
+              <p className="text-xs text-red-600 mt-1 font-semibold">غير نشطة</p>
+            </div>
+            <div className="relative">
+              <div className="absolute inset-0 bg-[#d32f2f]/20 rounded-full blur-xl group-hover:blur-2xl transition-all"></div>
+              <X className="w-8 h-8 sm:w-10 sm:h-10 text-[#d32f2f] flex-shrink-0 relative z-10 group-hover:scale-110 transition-all" />
+            </div>
           </div>
         </Card>
       </div>
 
-      <Card>
-        <Table columns={columns} data={authorizations} onRowClick={(row) => console.log('Selected:', row)} />
-      </Card>
+      {/* Search and Filters */}
+      <Card className="border-t-4 border-[#09b9b5]">
+        <div className="space-y-4">
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="ابحث عن تفويض برقم التفويض، المركبة، أو السائق..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pr-12 pl-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#09b9b5] focus:border-transparent transition-all text-right"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute left-4 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
+            )}
+          </div>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowModal(false)}>
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-2xl font-bold text-gray-900">تفويض جديد</h2>
-            </div>
-
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    رقم التفويض<span className="text-red-500 mr-1">*</span>
-                  </label>
-                  <Input placeholder="AUTH-2024-XXX" />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    نوع التفويض<span className="text-red-500 mr-1">*</span>
-                  </label>
-                  <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">اختر النوع</option>
-                    <option value="local">محلي فقط</option>
-                    <option value="tamm_local">تم + محلي</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    المركبة<span className="text-red-500 mr-1">*</span>
-                  </label>
-                  <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">اختر المركبة</option>
-                    <option value="1">ABC 1234 - تويوتا كامري</option>
-                    <option value="2">XYZ 5678 - هوندا أكورد</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    السائق المستلم<span className="text-red-500 mr-1">*</span>
-                  </label>
-                  <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">اختر السائق</option>
-                    <option value="1">محمد أحمد</option>
-                    <option value="2">خالد سعيد</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    المشرف المسلم<span className="text-red-500 mr-1">*</span>
-                  </label>
-                  <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">اختر المشرف</option>
-                    <option value="1">أحمد علي</option>
-                    <option value="2">خالد محمد</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    الشخص المفوض السابق
-                  </label>
-                  <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">اختر الشخص</option>
-                    <option value="1">محمد أحمد</option>
-                    <option value="2">خالد سعيد</option>
-                    <option value="3">عبدالله محمود</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    الشخص المفوض في تم
-                  </label>
-                  <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">اختر الشخص</option>
-                    <option value="1">محمد أحمد</option>
-                    <option value="2">خالد سعيد</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    عدد العمال في الفريق<span className="text-red-500 mr-1">*</span>
-                  </label>
-                  <select 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={workersCount}
-                    onChange={(e) => setWorkersCount(e.target.value)}
-                  >
-                    <option value="one">عامل واحد</option>
-                    <option value="two">عاملين</option>
-                    <option value="none">لا يوجد</option>
-                  </select>
-                </div>
-
-                <Input 
-                  label="عدد أيام التفويض" 
-                  type="number" 
-                  min="1"
-                  value={authorizationDays || ''}
-                  onChange={(e) => setAuthorizationDays(Number(e.target.value) || 0)}
-                  required 
-                />
-
-                <Input 
-                  label="تاريخ البداية" 
-                  type="date" 
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  required 
-                />
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    تاريخ الانتهاء <span className="text-gray-500 text-xs">(يُحسب تلقائياً)</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    readOnly
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
-                  />
-                  {endDate && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      تاريخ البداية + {authorizationDays} يوم = {endDate}
-                    </p>
-                  )}
-                </div>
+          {/* Filters */}
+          {showFilters && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 p-4 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-100 animate-slideDown">
+              <div>
+                <label className="block text-sm font-medium text-[#4d647c] mb-2">نوع التفويض</label>
+                <select 
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
+                >
+                  <option value="">الكل</option>
+                  <option value="تم + محلي">تم + محلي</option>
+                  <option value="محلي فقط">محلي فقط</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-[#4d647c] mb-2">الحالة</label>
+                <select 
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
+                >
+                  <option value="">الكل</option>
+                  <option value="ساري">ساري</option>
+                  <option value="قريب الانتهاء">قريب الانتهاء</option>
+                  <option value="منتهي">منتهي</option>
+                </select>
               </div>
 
-              {/* جرد العهدة - يظهر فقط إذا كان هناك عمال */}
-              {workersCount !== 'none' && (
-                <Card title="جرد العهدة" className="bg-gray-50">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
-                      <Package className="w-5 h-5 text-blue-600" />
-                      <div className="flex-1">
-                        <label className="text-xs text-gray-600">البليشر</label>
-                        <input type="number" min="0" defaultValue="0" className="w-full text-sm font-semibold mt-1 border-0 p-0 focus:ring-0" />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
-                      <Package className="w-5 h-5 text-blue-600" />
-                      <div className="flex-1">
-                        <label className="text-xs text-gray-600">الباكيوم</label>
-                        <input type="number" min="0" defaultValue="0" className="w-full text-sm font-semibold mt-1 border-0 p-0 focus:ring-0" />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
-                      <Package className="w-5 h-5 text-blue-600" />
-                      <div className="flex-1">
-                        <label className="text-xs text-gray-600">السلم الكبير</label>
-                        <input type="number" min="0" defaultValue="0" className="w-full text-sm font-semibold mt-1 border-0 p-0 focus:ring-0" />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
-                      <Package className="w-5 h-5 text-blue-600" />
-                      <div className="flex-1">
-                        <label className="text-xs text-gray-600">السلم الصغير</label>
-                        <input type="number" min="0" defaultValue="0" className="w-full text-sm font-semibold mt-1 border-0 p-0 focus:ring-0" />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
-                      <Package className="w-5 h-5 text-blue-600" />
-                      <div className="flex-1">
-                        <label className="text-xs text-gray-600">لي الماء</label>
-                        <input type="number" min="0" defaultValue="0" className="w-full text-sm font-semibold mt-1 border-0 p-0 focus:ring-0" />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
-                      <Package className="w-5 h-5 text-blue-600" />
-                      <div className="flex-1">
-                        <label className="text-xs text-gray-600">لي الباكيوم</label>
-                        <input type="number" min="0" defaultValue="0" className="w-full text-sm font-semibold mt-1 border-0 p-0 focus:ring-0" />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
-                      <Package className="w-5 h-5 text-blue-600" />
-                      <div className="flex-1">
-                        <label className="text-xs text-gray-600">نوسل ماء</label>
-                        <input type="number" min="0" defaultValue="0" className="w-full text-sm font-semibold mt-1 border-0 p-0 focus:ring-0" />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
-                      <Package className="w-5 h-5 text-blue-600" />
-                      <div className="flex-1">
-                        <label className="text-xs text-gray-600">نوسل شفط</label>
-                        <input type="number" min="0" defaultValue="0" className="w-full text-sm font-semibold mt-1 border-0 p-0 focus:ring-0" />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
-                      <Package className="w-5 h-5 text-blue-600" />
-                      <div className="flex-1">
-                        <label className="text-xs text-gray-600">نوسل كبير</label>
-                        <input type="number" min="0" defaultValue="0" className="w-full text-sm font-semibold mt-1 border-0 p-0 focus:ring-0" />
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              )}
+              <div>
+                <label className="block text-sm font-medium text-[#4d647c] mb-2">المركبة</label>
+                <select className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white">
+                  <option value="">الكل</option>
+                  <option value="ABC 1234">ABC 1234</option>
+                  <option value="XYZ 5678">XYZ 5678</option>
+                </select>
+              </div>
 
-              {/* أغراض الباص الرئيسية */}
-              <Card title="أغراض الباص الرئيسية" className="bg-blue-50">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
-                    <Package className="w-5 h-5 text-green-600" />
-                    <div className="flex-1">
-                      <label className="text-xs text-gray-600">كفر استبنه</label>
-                      <input type="number" min="0" defaultValue="0" className="w-full text-sm font-semibold mt-1 border-0 p-0 focus:ring-0" />
+              {/* Reset Button */}
+              {(filterStatus || filterType) && (
+                <div className="sm:col-span-3 flex justify-end">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setFilterStatus('');
+                      setFilterType('');
+                      setSearchTerm('');
+                    }}
+                    className="text-sm"
+                  >
+                    <X className="w-4 h-4 ml-2" />
+                    مسح الفلاتر
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* Results Summary */}
+      {searchTerm && (
+        <div className="flex items-center gap-2 text-sm text-gray-600 bg-blue-50 px-4 py-2 rounded-lg border border-blue-100">
+          <Search className="w-4 h-4 text-blue-600" />
+          <span>تم العثور على <strong className="text-blue-600">{filteredAuthorizations.length}</strong> نتيجة</span>
+        </div>
+      )}
+
+      {/* Table/Grid View */}
+      {viewMode === 'table' ? (
+        <Card>
+          <Table 
+            columns={columns} 
+            data={filteredAuthorizations} 
+            onRowClick={(row) => setSelectedAuth(row)} 
+          />
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredAuthorizations.map((auth, index) => {
+            const daysRemaining = getDaysRemaining(auth.endDate);
+            return (
+              <Card 
+                key={auth.id}
+                className="group cursor-pointer hover:shadow-2xl transition-all duration-300 border-t-4 border-[#09b9b5] overflow-hidden"
+                style={{ animationDelay: `${index * 50}ms` }}
+                onClick={() => setSelectedAuth(auth)}
+              >
+                {/* Header */}
+                <div className="relative bg-gradient-to-br from-[#09b9b5]/10 via-[#09b9b5]/5 to-transparent p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-white rounded-xl shadow-md">
+                        <FileText className="w-6 h-6 text-[#09b9b5]" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-lg text-gray-900">{auth.authNumber}</h3>
+                        <p className="text-sm text-gray-600">{auth.vehicleModel}</p>
+                      </div>
+                    </div>
+                    <Badge 
+                      variant={auth.status === 'ساري' ? 'success' : auth.status === 'قريب الانتهاء' ? 'warning' : 'default'}
+                    >
+                      {auth.status}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="p-4 space-y-3">
+                  {/* Vehicle & Driver */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className="p-2 bg-blue-50 rounded-lg">
+                        <Car className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">المركبة</p>
+                        <p className="font-semibold text-gray-900">{auth.vehicle}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className="p-2 bg-green-50 rounded-lg">
+                        <User className="w-4 h-4 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">السائق</p>
+                        <p className="font-semibold text-gray-900">{auth.driver}</p>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
-                    <Package className="w-5 h-5 text-green-600" />
-                    <div className="flex-1">
-                      <label className="text-xs text-gray-600">عفريته</label>
-                      <input type="number" min="0" defaultValue="0" className="w-full text-sm font-semibold mt-1 border-0 p-0 focus:ring-0" />
+
+                  {/* Dates */}
+                  <div className="p-3 bg-gray-50 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">تاريخ البداية</span>
+                      <span className="font-semibold">{auth.startDate}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">تاريخ الانتهاء</span>
+                      <span className="font-semibold">{auth.endDate}</span>
+                    </div>
+                    {daysRemaining > 0 && (
+                      <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                        <Clock className="w-4 h-4 text-orange-500" />
+                        <span className="text-sm text-orange-600 font-semibold">
+                          متبقي {daysRemaining} يوم
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Type & Workers */}
+                  <div className="flex items-center justify-between">
+                    <Badge variant={auth.type === 'تم + محلي' ? 'info' : 'default'}>
+                      {auth.type}
+                    </Badge>
+                    <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                      <Users className="w-4 h-4" />
+                      <span>{auth.workersCount} عمال</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
-                    <Package className="w-5 h-5 text-green-600" />
-                    <div className="flex-1">
-                      <label className="text-xs text-gray-600">مفك عجل</label>
-                      <input type="number" min="0" defaultValue="0" className="w-full text-sm font-semibold mt-1 border-0 p-0 focus:ring-0" />
-                    </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-2 pt-2 border-t border-gray-100">
+                    <button className="flex-1 py-2 px-3 bg-[#09b9b5] hover:bg-[#0da9a5] text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5">
+                      <Eye className="w-4 h-4" />
+                      عرض التفاصيل
+                    </button>
+                    <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                      <RefreshCw className="w-4 h-4 text-gray-600" />
+                    </button>
                   </div>
                 </div>
               </Card>
+            );
+          })}
+        </div>
+      )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  حالة المركبة عند التسليم
-                </label>
-                <textarea
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="اكتب ملاحظات عن حالة المركبة..."
-                ></textarea>
+      {/* Authorization Details Modal */}
+      {selectedAuth && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn" 
+          onClick={() => setSelectedAuth(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-slideUp" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="relative bg-gradient-to-r from-[#09b9b5] to-[#0da9a5] p-6 text-white">
+              <button
+                onClick={() => setSelectedAuth(null)}
+                className="absolute top-4 left-4 p-2 hover:bg-white/20 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              
+              <div className="flex items-center gap-4">
+                <div className="p-4 bg-white/20 backdrop-blur-sm rounded-2xl">
+                  <FileText className="w-8 h-8" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold mb-1">{selectedAuth.authNumber}</h2>
+                  <p className="text-white/90">{selectedAuth.vehicleModel}</p>
+                  <div className="flex gap-2 mt-2">
+                    <Badge variant={selectedAuth.status === 'ساري' ? 'success' : 'warning'} className="bg-white/20 border-white/30">
+                      {selectedAuth.status}
+                    </Badge>
+                    <Badge variant="info" className="bg-white/20 border-white/30">
+                      {selectedAuth.type}
+                    </Badge>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowModal(false)}>
-                إلغاء
-              </Button>
-              <Button variant="primary">
-                حفظ التفويض
-              </Button>
+            {/* Content */}
+            <div className="p-6 space-y-6">
+              {/* Quick Info */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl border border-blue-100">
+                  <Car className="w-6 h-6 text-blue-600 mx-auto mb-2" />
+                  <p className="text-xs text-gray-600 mb-1">المركبة</p>
+                  <p className="text-sm font-bold text-gray-900">{selectedAuth.vehicle}</p>
+                </div>
+                
+                <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100/50 rounded-xl border border-green-100">
+                  <User className="w-6 h-6 text-green-600 mx-auto mb-2" />
+                  <p className="text-xs text-gray-600 mb-1">السائق</p>
+                  <p className="text-sm font-bold text-gray-900">{selectedAuth.driver}</p>
+                </div>
+
+                <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl border border-purple-100">
+                  <Shield className="w-6 h-6 text-purple-600 mx-auto mb-2" />
+                  <p className="text-xs text-gray-600 mb-1">المشرف</p>
+                  <p className="text-sm font-bold text-gray-900">{selectedAuth.supervisor}</p>
+                </div>
+
+                <div className="text-center p-4 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-xl border border-orange-100">
+                  <Users className="w-6 h-6 text-orange-600 mx-auto mb-2" />
+                  <p className="text-xs text-gray-600 mb-1">العمال</p>
+                  <p className="text-lg font-bold text-gray-900">{selectedAuth.workersCount}</p>
+                </div>
+              </div>
+
+              {/* Period */}
+              <div className="p-4 bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-xl border border-gray-200 space-y-3">
+                <h3 className="font-bold text-lg text-gray-900 flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-[#09b9b5]" />
+                  فترة التفويض
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">تاريخ البداية</p>
+                    <p className="font-semibold text-gray-900">{selectedAuth.startDate}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">تاريخ الانتهاء</p>
+                    <p className="font-semibold text-gray-900">{selectedAuth.endDate}</p>
+                  </div>
+                </div>
+                {getDaysRemaining(selectedAuth.endDate) > 0 && (
+                  <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                    <Clock className="w-5 h-5 text-orange-500" />
+                    <span className="text-sm">
+                      متبقي <strong className="text-orange-600">{getDaysRemaining(selectedAuth.endDate)}</strong> يوم
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Equipment Inventory */}
+              <div className="space-y-3">
+                <h3 className="font-bold text-lg text-gray-900 flex items-center gap-2">
+                  <Package className="w-5 h-5 text-[#09b9b5]" />
+                  جرد العهدة
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {Object.entries(selectedAuth.equipment).map(([key, value]) => (
+                    <div key={key} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <Package className="w-4 h-4 text-[#09b9b5]" />
+                        <span className="text-sm text-gray-700">
+                          {key === 'bleacher' ? 'البليشر' : key === 'vacuum' ? 'الباكيوم' : 'السلم الكبير'}
+                        </span>
+                      </div>
+                      <span className="font-bold text-gray-900">{value as number}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-4 border-t border-gray-200">
+                <Button variant="primary" className="flex-1 group">
+                  <Edit className="w-4 h-4 ml-2 group-hover:rotate-12 transition-transform" />
+                  تعديل التفويض
+                </Button>
+                <Button variant="secondary" className="flex-1 group">
+                  <RefreshCw className="w-4 h-4 ml-2 group-hover:rotate-180 transition-transform" />
+                  تجديد التفويض
+                </Button>
+                <Button variant="outline" className="group">
+                  <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
+                </Button>
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* Add Authorization Modal (Multi-Step) */}
+      {showModal && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn" 
+          onClick={() => setShowModal(false)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto animate-slideUp" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="sticky top-0 z-10 bg-gradient-to-r from-[#09b9b5] to-[#0da9a5] p-6 text-white shadow-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl">
+                    <Plus className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">تفويض جديد</h2>
+                    <p className="text-white/80 text-sm mt-0.5">إنشاء تفويض مركبة وجرد العهدة</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Progress Steps */}
+              <div className="flex items-center justify-between mt-6">
+                {[
+                  { num: 1, label: 'معلومات أساسية', icon: FileText },
+                  { num: 2, label: 'جرد العهدة', icon: Package },
+                  { num: 3, label: 'أغراض الباص', icon: Car },
+                ].map((step, i) => {
+                  const Icon = step.icon;
+                  return (
+                    <div key={i} className="flex items-center gap-2 flex-1">
+                      <button
+                        onClick={() => setCurrentStep(step.num)}
+                        className={`flex items-center gap-3 flex-1 p-3 rounded-xl transition-all ${
+                          currentStep === step.num
+                            ? 'bg-white text-[#09b9b5] shadow-lg'
+                            : currentStep > step.num
+                            ? 'bg-white/20 text-white hover:bg-white/30'
+                            : 'bg-white/10 text-white/60'
+                        }`}
+                      >
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold ${
+                          currentStep === step.num
+                            ? 'bg-[#09b9b5] text-white'
+                            : currentStep > step.num
+                            ? 'bg-green-500 text-white'
+                            : 'bg-white/20 text-white/60'
+                        }`}>
+                          {currentStep > step.num ? <CheckCircle className="w-5 h-5" /> : <Icon className="w-4 h-4" />}
+                        </div>
+                        <div className="text-right hidden sm:block">
+                          <p className="text-xs opacity-80">الخطوة {step.num}</p>
+                          <p className="text-sm font-semibold">{step.label}</p>
+                        </div>
+                      </button>
+                      {i < 2 && (
+                        <div className={`w-8 h-0.5 hidden sm:block ${
+                          currentStep > step.num ? 'bg-white' : 'bg-white/20'
+                        }`}></div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <form className="p-6 space-y-6">
+              {/* Step 1: Basic Information */}
+              {currentStep === 1 && (
+                <div className="space-y-6 animate-fadeIn">
+                  <div className="flex items-center gap-2 pb-3 border-b border-gray-200">
+                    <FileText className="w-5 h-5 text-[#09b9b5]" />
+                    <h3 className="text-lg font-bold text-gray-900">المعلومات الأساسية</h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                      label="رقم التفويض"
+                      placeholder="AUTH-2024-XXX"
+                      required
+                    />
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        نوع التفويض<span className="text-red-500 mr-1">*</span>
+                      </label>
+                      <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]">
+                        <option value="">اختر النوع</option>
+                        <option value="local">محلي فقط</option>
+                        <option value="tamm_local">تم + محلي</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        المركبة<span className="text-red-500 mr-1">*</span>
+                      </label>
+                      <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]">
+                        <option value="">اختر المركبة</option>
+                        <option value="1">ABC 1234 - تويوتا كامري</option>
+                        <option value="2">XYZ 5678 - هوندا أكورد</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        السائق المستلم<span className="text-red-500 mr-1">*</span>
+                      </label>
+                      <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]">
+                        <option value="">اختر السائق</option>
+                        <option value="1">محمد أحمد</option>
+                        <option value="2">خالد سعيد</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        المشرف المسلم<span className="text-red-500 mr-1">*</span>
+                      </label>
+                      <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]">
+                        <option value="">اختر المشرف</option>
+                        <option value="1">أحمد علي</option>
+                        <option value="2">خالد محمد</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        الشخص المفوض السابق
+                      </label>
+                      <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]">
+                        <option value="">اختر الشخص</option>
+                        <option value="1">محمد أحمد</option>
+                        <option value="2">خالد سعيد</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        الشخص المفوض في تم
+                      </label>
+                      <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]">
+                        <option value="">اختر الشخص</option>
+                        <option value="1">محمد أحمد</option>
+                        <option value="2">خالد سعيد</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        عدد العمال في الفريق<span className="text-red-500 mr-1">*</span>
+                      </label>
+                      <select 
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]"
+                        value={workersCount}
+                        onChange={(e) => setWorkersCount(e.target.value)}
+                      >
+                        <option value="one">عامل واحد</option>
+                        <option value="two">عاملين</option>
+                        <option value="none">لا يوجد</option>
+                      </select>
+                    </div>
+
+                    <Input 
+                      label="عدد أيام التفويض" 
+                      type="number" 
+                      min="1"
+                      value={authorizationDays || ''}
+                      onChange={(e) => setAuthorizationDays(Number(e.target.value) || 0)}
+                      required 
+                    />
+
+                    <Input 
+                      label="تاريخ البداية" 
+                      type="date" 
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      required 
+                    />
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        تاريخ الانتهاء <span className="text-gray-500 text-xs">(يُحسب تلقائياً)</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={endDate}
+                        readOnly
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                      />
+                      {endDate && (
+                        <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3" />
+                          البداية + {authorizationDays} يوم = {endDate}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-gray-500" />
+                      حالة المركبة عند التسليم
+                    </label>
+                    <textarea
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]"
+                      placeholder="اكتب ملاحظات عن حالة المركبة..."
+                    ></textarea>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: Equipment Inventory */}
+              {currentStep === 2 && workersCount !== 'none' && (
+                <div className="space-y-6 animate-fadeIn">
+                  <div className="flex items-center gap-2 pb-3 border-b border-gray-200">
+                    <Package className="w-5 h-5 text-[#09b9b5]" />
+                    <h3 className="text-lg font-bold text-gray-900">جرد العهدة</h3>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {[
+                      'البليشر', 'الباكيوم', 'السلم الكبير', 'السلم الصغير',
+                      'لي الماء', 'لي الباكيوم', 'نوسل ماء', 'نوسل شفط', 'نوسل كبير'
+                    ].map((item, i) => (
+                      <div key={i} className="p-4 bg-gradient-to-br from-gray-50 to-white rounded-xl border-2 border-gray-200 hover:border-[#09b9b5] transition-all group">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-[#09b9b5]/10 rounded-lg group-hover:bg-[#09b9b5]/20 transition-colors">
+                            <Package className="w-5 h-5 text-[#09b9b5]" />
+                          </div>
+                          <div className="flex-1">
+                            <label className="text-sm font-medium text-gray-700 mb-1 block">{item}</label>
+                            <input 
+                              type="number" 
+                              min="0" 
+                              defaultValue="0" 
+                              className="w-full text-lg font-bold border-0 p-0 focus:ring-0 text-gray-900"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Bus Main Items */}
+              {currentStep === 3 && (
+                <div className="space-y-6 animate-fadeIn">
+                  <div className="flex items-center gap-2 pb-3 border-b border-gray-200">
+                    <Car className="w-5 h-5 text-[#09b9b5]" />
+                    <h3 className="text-lg font-bold text-gray-900">أغراض الباص الرئيسية</h3>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {['كفر استبنه', 'عفريته', 'مفك عجل'].map((item, i) => (
+                      <div key={i} className="p-4 bg-gradient-to-br from-green-50 to-white rounded-xl border-2 border-green-200 hover:border-green-400 transition-all group">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
+                            <Package className="w-5 h-5 text-green-600" />
+                          </div>
+                          <div className="flex-1">
+                            <label className="text-sm font-medium text-gray-700 mb-1 block">{item}</label>
+                            <input 
+                              type="number" 
+                              min="0" 
+                              defaultValue="0" 
+                              className="w-full text-lg font-bold border-0 p-0 focus:ring-0 text-gray-900"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Navigation Buttons */}
+              <div className="flex justify-between gap-3 pt-4 border-t-2 border-gray-200 sticky bottom-0 bg-white pb-2">
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    type="button" 
+                    onClick={() => setShowModal(false)}
+                    className="group"
+                  >
+                    <X className="w-4 h-4 ml-2 group-hover:rotate-90 transition-transform" />
+                    إلغاء
+                  </Button>
+                  
+                  {currentStep > 1 && (
+                    <Button 
+                      variant="secondary" 
+                      type="button"
+                      onClick={() => setCurrentStep(currentStep - 1)}
+                      className="group"
+                    >
+                      السابق
+                    </Button>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  {currentStep < 3 ? (
+                    <Button 
+                      variant="primary" 
+                      type="button"
+                      onClick={() => setCurrentStep(currentStep + 1)}
+                      className="group relative overflow-hidden"
+                    >
+                      <div className="absolute inset-0 bg-white/20 translate-x-full group-hover:translate-x-0 transition-transform"></div>
+                      <span className="relative z-10">التالي</span>
+                      <TrendingUp className="w-4 h-4 mr-2 relative z-10 group-hover:translate-x-1 transition-transform" />
+                    </Button>
+                  ) : (
+                    <Button 
+                      variant="primary" 
+                      type="submit"
+                      className="group relative overflow-hidden"
+                    >
+                      <div className="absolute inset-0 bg-white/20 translate-x-full group-hover:translate-x-0 transition-transform"></div>
+                      <CheckCircle className="w-4 h-4 ml-2 relative z-10 group-hover:scale-110 transition-transform" />
+                      <span className="relative z-10">حفظ التفويض</span>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <style jsx global>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes slideDown {
+          from {
+            opacity: 0;
+            max-height: 0;
+          }
+          to {
+            opacity: 1;
+            max-height: 500px;
+          }
+        }
+
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .animate-fadeIn {
+          animation: fadeIn 0.5s ease-out forwards;
+        }
+
+        .animate-slideDown {
+          animation: slideDown 0.3s ease-out forwards;
+        }
+
+        .animate-slideUp {
+          animation: slideUp 0.3s ease-out forwards;
+        }
+      `}</style>
     </div>
   );
 }

@@ -10,19 +10,19 @@ export function FinancialReports() {
   const [period, setPeriod] = useState('month');
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">التقارير المالية</h1>
-          <p className="text-gray-600">تقارير وإحصائيات المصاريف والإيرادات</p>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">التقارير المالية</h1>
+          <p className="text-sm sm:text-base text-gray-600">تقارير وإحصائيات المصاريف والإيرادات</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2 sm:gap-3 items-end">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">الفترة</label>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">الفترة</label>
             <select
               value={period}
               onChange={(e) => setPeriod(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]"
             >
               <option value="week">أسبوع</option>
               <option value="month">شهر</option>
@@ -30,52 +30,53 @@ export function FinancialReports() {
               <option value="year">سنة</option>
             </select>
           </div>
-          <Button variant="primary">
-            <Download className="w-4 h-4 ml-2" />
-            تصدير التقرير
+          <Button variant="primary" className="text-sm">
+            <Download className="w-4 h-4 ml-1 sm:ml-2" />
+            <span className="hidden sm:inline">تصدير التقرير</span>
+            <span className="sm:hidden">تصدير</span>
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-r-4 border-blue-500">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <Card className="border-r-4 border-[#09b9b5]">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">إجمالي المصاريف</p>
-              <p className="text-3xl font-bold text-gray-900">542,400</p>
-              <p className="text-xs text-gray-500 mt-1">ر.س لهذه الفترة</p>
+              <p className="text-xs sm:text-sm text-gray-600 mb-1">إجمالي المصاريف</p>
+              <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900">542,400</p>
+              <p className="text-xs text-gray-500 mt-1 hidden sm:block">ر.س لهذه الفترة</p>
             </div>
-            <DollarSign className="w-10 h-10 text-blue-500" />
+            <DollarSign className="w-8 h-8 sm:w-10 sm:h-10 text-[#617c96] flex-shrink-0" />
           </div>
         </Card>
-        <Card className="border-r-4 border-green-500">
+        <Card className="border-r-4 border-[#00a287]">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">مصاريف الوقود</p>
-              <p className="text-3xl font-bold text-gray-900">185,000</p>
-              <p className="text-xs text-green-600 mt-1">34% من الإجمالي</p>
+              <p className="text-xs sm:text-sm text-gray-600 mb-1">مصاريف الوقود</p>
+              <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900">185,000</p>
+              <p className="text-xs text-[#00a287] mt-1 hidden sm:block">34% من الإجمالي</p>
             </div>
-            <TrendingUp className="w-10 h-10 text-green-500" />
+            <TrendingUp className="w-8 h-8 sm:w-10 sm:h-10 text-[#617c96] flex-shrink-0" />
           </div>
         </Card>
-        <Card className="border-r-4 border-amber-500">
+        <Card className="border-r-4 border-[#f57c00]">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">مصاريف الصيانة</p>
-              <p className="text-3xl font-bold text-gray-900">268,800</p>
-              <p className="text-xs text-amber-600 mt-1">50% من الإجمالي</p>
+              <p className="text-xs sm:text-sm text-gray-600 mb-1">مصاريف الصيانة</p>
+              <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900">268,800</p>
+              <p className="text-xs text-[#f57c00] mt-1 hidden sm:block">50% من الإجمالي</p>
             </div>
-            <BarChart3 className="w-10 h-10 text-amber-500" />
+            <BarChart3 className="w-8 h-8 sm:w-10 sm:h-10 text-[#617c96] flex-shrink-0" />
           </div>
         </Card>
-        <Card className="border-r-4 border-purple-500">
+        <Card className="border-r-4 border-[#7b1fa2]">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">متوسط لكل مركبة</p>
-              <p className="text-3xl font-bold text-gray-900">11,300</p>
-              <p className="text-xs text-gray-500 mt-1">ر.س/مركبة</p>
+              <p className="text-xs sm:text-sm text-gray-600 mb-1">متوسط لكل مركبة</p>
+              <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900">11,300</p>
+              <p className="text-xs text-gray-500 mt-1 hidden sm:block">ر.س/مركبة</p>
             </div>
-            <BarChart3 className="w-10 h-10 text-purple-500" />
+            <BarChart3 className="w-8 h-8 sm:w-10 sm:h-10 text-[#7b1fa2] flex-shrink-0" />
           </div>
         </Card>
       </div>
@@ -84,10 +85,10 @@ export function FinancialReports() {
         <Card title="ملخص المصاريف حسب الفئة">
           <div className="space-y-4">
             {[
-              { label: 'وقود', amount: '185,000', percent: 34, color: 'bg-amber-500' },
-              { label: 'صيانة', amount: '268,800', percent: 50, color: 'bg-green-500' },
-              { label: 'إصلاحات', amount: '54,240', percent: 10, color: 'bg-blue-500' },
-              { label: 'أخرى', amount: '34,360', percent: 6, color: 'bg-gray-500' },
+              { label: 'وقود', amount: '185,000', percent: 34, color: 'bg-[#f57c00]' },
+              { label: 'صيانة', amount: '268,800', percent: 50, color: 'bg-[#00a287]' },
+              { label: 'إصلاحات', amount: '54,240', percent: 10, color: 'bg-[#09b9b5]' },
+              { label: 'أخرى', amount: '34,360', percent: 6, color: 'bg-[#617c96]' },
             ].map((item, i) => (
               <div key={i}>
                 <div className="flex justify-between text-sm mb-1">
@@ -110,7 +111,7 @@ export function FinancialReports() {
             <Input label="إلى تاريخ" type="date" />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">نوع التقرير</label>
-              <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]">
                 <option value="summary">ملخص المصاريف</option>
                 <option value="by-vehicle">حسب المركبة</option>
                 <option value="by-category">حسب الفئة</option>

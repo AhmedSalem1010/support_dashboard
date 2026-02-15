@@ -6,17 +6,24 @@ interface CardProps {
   children: ReactNode;
   title?: string;
   className?: string;
+  hoverable?: boolean;
+  style?: React.CSSProperties;
+  onClick?: () => void;
 }
 
-export function Card({ children, title, className = '' }: CardProps) {
+export function Card({ children, title, className = '', hoverable = false, style, onClick }: CardProps) {
+  // CleanLife Design System - Cards
+  const baseStyles = 'bg-white rounded-lg border border-gray-200 shadow-sm';
+  const hoverStyles = hoverable ? 'transition-all duration-200 hover:shadow-md hover:border-[#09b9b5]' : '';
+  
   return (
-    <div className={`bg-white rounded-lg shadow-md border border-gray-200 ${className}`}>
+    <div className={`${baseStyles} ${hoverStyles} ${className}`} style={style} onClick={onClick}>
       {title && (
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900">{title}</h3>
         </div>
       )}
-      <div className="p-6">{children}</div>
+      <div className="p-4 sm:p-6">{children}</div>
     </div>
   );
 }
