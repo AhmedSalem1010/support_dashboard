@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
-import { Dashboard } from '@/components/pages/Dashboard';
+import Dashboard from '@/components/pages/Dashboard';
 import { Vehicles } from '@/components/pages/Vehicles';
 import { Users } from '@/components/pages/Users';
 import { Authorizations } from '@/components/pages/Authorizations';
@@ -10,7 +10,7 @@ import Inspection from '@/components/pages/Inspection';
 import { Maintenance } from '@/components/pages/Maintenance';
 import { Accidents } from '@/components/pages/Accidents';
 import { Expenses } from '@/components/pages/Expenses';
-import { FinancialReports } from '@/components/pages/FinancialReports';
+import FinancialReports from '@/components/pages/FinancialReports';
 
 export default function HomePage() {
   const [currentPage, setCurrentPage] = useState('dashboard');
