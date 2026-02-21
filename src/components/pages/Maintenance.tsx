@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/Button';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { RepairTypeSelector, type RepairTypeItem } from '@/components/ui/RepairTypeSelector';
 
 export function Maintenance() {
   const [showModal, setShowModal] = useState(false);
@@ -29,6 +31,106 @@ export function Maintenance() {
     supervisorId: '',
     description: '',
   });
+  const [repairTypeSelections, setRepairTypeSelections] = useState<RepairTypeItem[]>([]);
+  const [repairTypeImages, setRepairTypeImages] = useState<Record<string, string>>({});
+
+  // خيارات القوائم المنسدلة في نموذج الإضافة
+  const vehicleOptions = [
+    { value: '1', label: 'ABC 1234 - تويوتا كامري' },
+    { value: '2', label: 'XYZ 5678 - هوندا أكورد' },
+    { value: '3', label: 'DEF 9012 - نيسان التيما' },
+  ];
+  const maintenanceTypeOptions = [
+    { value: 'oil', label: 'تغيير زيت' },
+    { value: 'periodic', label: 'صيانة دورية' },
+    { value: 'repair', label: 'إصلاح' },
+    { value: 'accident', label: 'حادث مروري' },
+  ];
+  const costOnOptions = [
+    { value: 'company', label: 'الشركة' },
+    { value: 'vehicle', label: 'المركبة' },
+    { value: 'driver', label: 'السائق' },
+  ];
+  const driverOptions = [
+    { value: '1', label: 'محمد أحمد' },
+    { value: '2', label: 'خالد سعيد' },
+    { value: '3', label: 'عبدالله محمود' },
+  ];
+  const supervisorOptions = [
+    { value: '1', label: 'أحمد علي' },
+    { value: '2', label: 'خالد محمد' },
+    { value: '3', label: 'سعيد محمود' },
+  ];
+
+  // أنواع الإصلاح (من الصور، بدون تكرار)
+  const repairTypeOptions: RepairTypeItem[] = [
+    { id: 'temp-sensor', label: 'حساس الحرارة' },
+    { id: 'oxygen-sensor', label: 'حساس الأوكسجين' },
+    { id: 'fuel-pump', label: 'طرمبة البنزين' },
+    { id: 'windshield-wipers', label: 'مساحات الزجاج' },
+    { id: 'mirror', label: 'مرايه' },
+    { id: 'fans', label: 'المراوح' },
+    { id: 'car-computer', label: 'كمبيوتر السيارة' },
+    { id: 'hoses-pipes', label: 'الليات والخراطيم' },
+    { id: 'filters', label: 'الصفايات' },
+    { id: 'brake-fluid', label: 'زيت فرامل' },
+    { id: 'radiator-water', label: 'ماء لديتر' },
+    { id: 'polishing', label: 'تلميع ساطع' },
+    { id: 'tire-balancing', label: 'ترصيص كفرات' },
+    { id: 'bearings', label: 'الرمانات' },
+    { id: 'axle-alignment', label: 'میزان اذرعه' },
+    { id: 'hub-turning', label: 'خرط صرة' },
+    { id: 'bodywork', label: 'سمكره' },
+    { id: 'mechanics', label: 'مكانيك' },
+    { id: 'tires', label: 'الكفرات' },
+    { id: 'brakes', label: 'الفرامل (الفحمات)' },
+    { id: 'clutch', label: 'كلتش' },
+    { id: 'sticker', label: 'استيكر' },
+    { id: 'electricity', label: 'كهرباء' },
+    { id: 'glass', label: 'الزجاج' },
+    { id: 'freon', label: 'فريون' },
+    { id: 'ac-fan-dynamo', label: 'دينمو مروحه مكيف' },
+    { id: 'ac-radiator', label: 'لديتر مكيف' },
+    { id: 'ac-filters', label: 'فلاتر المكيف' },
+    { id: 'diesel-filter', label: 'فلتر الديزل' },
+    { id: 'air-filter', label: 'فلتر الهواء' },
+    { id: 'battery', label: 'البطارية' },
+    { id: 'wiper', label: 'المساحه' },
+    { id: 'lights', label: 'اسطبات' },
+    { id: 'gear', label: 'قير' },
+    { id: 'u-joints', label: 'صليبات' },
+    { id: 'periodic-inspection', label: 'الفحص الدوري' },
+    { id: 'estimation', label: 'التقدير' },
+    { id: 'front-rear-lights', label: 'الإنوار الأمامية والخلفية' },
+    { id: 'shock-absorbers', label: 'المساعدات' },
+    { id: 'control-arm-bushings', label: 'جلد المقصات' },
+    { id: 'spark-plugs', label: 'البواجي' },
+    { id: 'engine-belt', label: 'سير المكينة' },
+    { id: 'water-pump', label: 'طرمبة الماء' },
+    { id: 'axles', label: 'العكوس' },
+    { id: 'brake-lines', label: 'ليات الفرامل' },
+    { id: 'hydraulic-oil', label: 'زيت هيدروليك' },
+    { id: 'wheel-pull', label: 'سحب عجل' },
+    { id: 'passenger-seat', label: 'تثبيت كرسي راكب نص' },
+    { id: 'engine-mounts', label: 'كراسي مكينه' },
+    { id: 'exhaust-mounts', label: 'كراسي شكمان' },
+    { id: 'lost-pedal-key', label: 'مفتاح بدال فاقد' },
+    { id: 'tire-sensor-valve', label: 'بلف حساس كفر' },
+    { id: 'car-wash', label: 'غسيل السيارات' },
+    { id: 'inner-patch', label: 'رقعه داخليه' },
+    { id: 'bus-floor-mats', label: 'فرشات أرضية الباص (ربل)' },
+    { id: 'lining-installation', label: 'تركيب بطانه' },
+    { id: 'seat-cover', label: 'تلبيسه كرسي' },
+    { id: 'steering-cover', label: 'تلبيسه سكان' },
+    { id: 'hubcap-set', label: 'طقم طاسات' },
+    { id: 'remote-batteries', label: 'بطاريات ريموت' },
+    { id: 'rear-cylinder', label: 'سلندر خلفي' },
+    { id: 'brake-pads-install', label: 'تركيب بطاين' },
+    { id: 'engine-sheets', label: 'صاجات مكينه' },
+  ];
+
+  const showRepairTypeField =
+    formData.type === 'repair' || formData.type === 'periodic' || formData.type === 'accident';
 
   const maintenanceRecords = [
     { 
@@ -359,6 +461,8 @@ export function Maintenance() {
               setShowModal(true);
               setInvoiceFile(null);
               setInvoicePreview('');
+              setRepairTypeSelections([]);
+              setRepairTypeImages({});
             }} 
             className="text-sm group relative overflow-hidden"
           >
@@ -904,6 +1008,7 @@ export function Maintenance() {
             <form 
               onSubmit={(e) => { 
                 e.preventDefault(); 
+                if (!formData.vehicleId || !formData.type || !formData.date || !formData.costOn || !formData.amount || !formData.description) return;
                 setShowModal(false); 
               }} 
               className="p-6 space-y-5"
@@ -917,39 +1022,31 @@ export function Maintenance() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      المركبة <span className="text-red-500">*</span>
-                    </label>
-                    <select 
-                      value={formData.vehicleId} 
-                      onChange={(e) => setFormData({ ...formData, vehicleId: e.target.value })} 
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]" 
+                    <SearchableSelect
+                      label="المركبة"
                       required
-                    >
-                      <option value="">اختر المركبة</option>
-                      <option value="1">ABC 1234 - تويوتا كامري</option>
-                      <option value="2">XYZ 5678 - هوندا أكورد</option>
-                      <option value="3">DEF 9012 - نيسان التيما</option>
-                    </select>
+                      placeholder="اختر المركبة"
+                      options={vehicleOptions}
+                      value={formData.vehicleId}
+                      onChange={(val) => setFormData({ ...formData, vehicleId: val })}
+                    />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      نوع الصيانة <span className="text-red-500">*</span>
-                    </label>
-                    <select 
-                      value={formData.type} 
-                      onChange={(e) => setFormData({ ...formData, type: e.target.value })} 
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]" 
+                    <SearchableSelect
+                      label="نوع الصيانة"
                       required
-                    >
-                      <option value="">اختر النوع</option>
-                      <option value="periodic">صيانة دورية</option>
-                      <option value="repair">إصلاح</option>
-                      <option value="oil">تغيير زيت</option>
-                      <option value="tires">إطارات</option>
-                      <option value="other">أخرى</option>
-                    </select>
+                      placeholder="اختر النوع"
+                      options={maintenanceTypeOptions}
+                      value={formData.type}
+                      onChange={(val) => {
+                        setFormData({ ...formData, type: val });
+                        if (val !== 'repair' && val !== 'periodic' && val !== 'accident') {
+                          setRepairTypeSelections([]);
+                          setRepairTypeImages({});
+                        }
+                      }}
+                    />
                   </div>
 
                   <div>
@@ -969,20 +1066,14 @@ export function Maintenance() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      التكلفة على <span className="text-red-500">*</span>
-                    </label>
-                    <select 
-                      value={formData.costOn} 
-                      onChange={(e) => setFormData({ ...formData, costOn: e.target.value })} 
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]" 
+                    <SearchableSelect
+                      label="التكلفة على"
                       required
-                    >
-                      <option value="">اختر</option>
-                      <option value="company">الشركة</option>
-                      <option value="vehicle">المركبة</option>
-                      <option value="driver">السائق</option>
-                    </select>
+                      placeholder="اختر"
+                      options={costOnOptions}
+                      value={formData.costOn}
+                      onChange={(val) => setFormData({ ...formData, costOn: val })}
+                    />
                   </div>
 
                   <div>
@@ -1005,34 +1096,41 @@ export function Maintenance() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">السائق المفوض</label>
-                    <select 
-                      value={formData.driverId} 
-                      onChange={(e) => setFormData({ ...formData, driverId: e.target.value })} 
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]"
-                    >
-                      <option value="">اختر السائق</option>
-                      <option value="1">محمد أحمد</option>
-                      <option value="2">خالد سعيد</option>
-                      <option value="3">عبدالله محمود</option>
-                    </select>
+                    <SearchableSelect
+                      label="السائق المفوض"
+                      placeholder="اختر السائق"
+                      options={driverOptions}
+                      value={formData.driverId}
+                      onChange={(val) => setFormData({ ...formData, driverId: val })}
+                    />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">المشرف المستلم</label>
-                  <select 
-                    value={formData.supervisorId} 
-                    onChange={(e) => setFormData({ ...formData, supervisorId: e.target.value })} 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]"
-                  >
-                    <option value="">اختر المشرف</option>
-                    <option value="1">أحمد علي</option>
-                    <option value="2">خالد محمد</option>
-                    <option value="3">سعيد محمود</option>
-                  </select>
+                  <SearchableSelect
+                    label="المشرف المستلم"
+                    placeholder="اختر المشرف"
+                    options={supervisorOptions}
+                    value={formData.supervisorId}
+                    onChange={(val) => setFormData({ ...formData, supervisorId: val })}
+                  />
                 </div>
               </div>
+
+              {/* نوع الإصلاح - يظهر عند اختيار إصلاح أو صيانة دورية أو حادث مروري */}
+              {showRepairTypeField && (
+                <div className="pt-4 border-t border-gray-200">
+                  <RepairTypeSelector
+                    options={repairTypeOptions}
+                    selectedItems={repairTypeSelections}
+                    selectedImages={repairTypeImages}
+                    onChange={(items, images) => {
+                      setRepairTypeSelections(items);
+                      setRepairTypeImages(images);
+                    }}
+                  />
+                </div>
+              )}
 
               {/* Description */}
               <div>
