@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Plus, Wrench, Car, Calendar, DollarSign, Upload, Search, Filter, Download, X, Eye, Edit, Trash2, TrendingUp, TrendingDown, CheckCircle, Clock, FileText, User, Shield, AlertCircle } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { RepairTypeSelector, type RepairTypeItem } from '@/components/ui/RepairTypeSelector';
+import { useVehiclesList } from '@/hooks/useVehiclesList';
+import { MAINTENANCE_STATUS_LABELS, statusToArabic } from '@/lib/enums';
 
 export function Maintenance() {
   const [showModal, setShowModal] = useState(false);
@@ -33,13 +35,10 @@ export function Maintenance() {
   });
   const [repairTypeSelections, setRepairTypeSelections] = useState<RepairTypeItem[]>([]);
   const [repairTypeImages, setRepairTypeImages] = useState<Record<string, string>>({});
+  const [descriptionNotes, setDescriptionNotes] = useState('');
 
-  // خيارات القوائم المنسدلة في نموذج الإضافة
-  const vehicleOptions = [
-    { value: '1', label: 'ABC 1234 - تويوتا كامري' },
-    { value: '2', label: 'XYZ 5678 - هوندا أكورد' },
-    { value: '3', label: 'DEF 9012 - نيسان التيما' },
-  ];
+  // خيارات القوائم المنسدلة - المركبات من API
+  const { vehicleOptions } = useVehiclesList();
   const maintenanceTypeOptions = [
     { value: 'oil', label: 'تغيير زيت' },
     { value: 'periodic', label: 'صيانة دورية' },
@@ -132,6 +131,15 @@ export function Maintenance() {
   const showRepairTypeField =
     formData.type === 'repair' || formData.type === 'periodic' || formData.type === 'accident';
 
+  // مزامنة وصف الصيانة مع أنواع الإصلاح المختارة
+  useEffect(() => {
+    if (showRepairTypeField) {
+      const typesText = repairTypeSelections.map((s) => s.label).join('، ');
+      const fullDescription = typesText + (descriptionNotes ? '\n\n' + descriptionNotes : '');
+      setFormData((prev) => ({ ...prev, description: fullDescription }));
+    }
+  }, [showRepairTypeField, repairTypeSelections, descriptionNotes]);
+
   const maintenanceRecords = [
     { 
       id: 1, 
@@ -223,7 +231,7 @@ export function Maintenance() {
         record.driver.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesType = filterType === '' || record.type === filterType;
-      const matchesStatus = filterStatus === '' || record.status === filterStatus;
+      const matchesStatus = filterStatus === '' || statusToArabic(record.status) === filterStatus;
       const matchesCostOn = filterCostOn === '' || record.costOn === filterCostOn;
       
       return matchesSearch && matchesType && matchesStatus && matchesCostOn;
@@ -328,13 +336,14 @@ export function Maintenance() {
       label: 'الحالة',
       render: (value: unknown) => {
         const v = String(value);
-        const variant = v === 'مكتمل' ? 'success' : 'warning';
-        const icon = v === 'مكتمل' ? CheckCircle : Clock;
+        const displayStatus = statusToArabic(v);
+        const variant = displayStatus === 'مكتمل' ? 'success' : displayStatus === 'قيد التنفيذ' || displayStatus === 'قيد الانتظار' ? 'warning' : 'default';
+        const icon = displayStatus === 'مكتمل' ? CheckCircle : Clock;
         const Icon = icon;
         return (
           <Badge variant={variant} className="flex items-center gap-1.5 w-fit">
             <Icon className="w-3.5 h-3.5" />
-            {v}
+            {displayStatus}
           </Badge>
         );
       },
@@ -463,6 +472,7 @@ export function Maintenance() {
               setInvoicePreview('');
               setRepairTypeSelections([]);
               setRepairTypeImages({});
+              setDescriptionNotes('');
             }} 
             className="text-sm group relative overflow-hidden"
           >
@@ -624,8 +634,9 @@ export function Maintenance() {
                   className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
                 >
                   <option value="">الكل</option>
-                  <option value="مكتمل">مكتمل</option>
-                  <option value="قيد التنفيذ">قيد التنفيذ</option>
+                  {Object.entries(MAINTENANCE_STATUS_LABELS).map(([val, label]) => (
+                    <option key={val} value={label}>{label}</option>
+                  ))}
                 </select>
               </div>
 
@@ -786,9 +797,9 @@ export function Maintenance() {
                     </div>
                   </div>
                   <Badge 
-                    variant={record.status === 'مكتمل' ? 'success' : 'warning'}
+                    variant={(s => s === 'مكتمل' ? 'success' : s === 'قيد التنفيذ' || s === 'قيد الانتظار' ? 'warning' : 'default')(statusToArabic(record.status))}
                   >
-                    {record.status}
+                    {statusToArabic(record.status)}
                   </Badge>
                 </div>
               </div>
@@ -888,8 +899,8 @@ export function Maintenance() {
                   <h2 className="text-2xl font-bold mb-1">{selectedMaintenance.type}</h2>
                   <p className="text-white/90">{selectedMaintenance.vehicle} - {selectedMaintenance.vehicleModel}</p>
                   <div className="flex gap-2 mt-2">
-                    <Badge variant={selectedMaintenance.status === 'مكتمل' ? 'success' : 'warning'} className="bg-white/20 border-white/30">
-                      {selectedMaintenance.status}
+                    <Badge variant={(s => s === 'مكتمل' ? 'success' : s === 'قيد التنفيذ' || s === 'قيد الانتظار' ? 'warning' : 'default')(statusToArabic(selectedMaintenance.status))} className="bg-white/20 border-white/30">
+                      {statusToArabic(selectedMaintenance.status)}
                     </Badge>
                     <Badge variant="info" className="bg-white/20 border-white/30">
                       {selectedMaintenance.costOn}
@@ -1040,10 +1051,16 @@ export function Maintenance() {
                       options={maintenanceTypeOptions}
                       value={formData.type}
                       onChange={(val) => {
-                        setFormData({ ...formData, type: val });
-                        if (val !== 'repair' && val !== 'periodic' && val !== 'accident') {
+                        const isRepairType = val === 'repair' || val === 'periodic' || val === 'accident';
+                        setFormData((prev) => ({
+                          ...prev,
+                          type: val,
+                          description: isRepairType ? prev.description : '',
+                        }));
+                        if (!isRepairType) {
                           setRepairTypeSelections([]);
                           setRepairTypeImages({});
+                          setDescriptionNotes('');
                         }
                       }}
                     />
@@ -1136,16 +1153,37 @@ export function Maintenance() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                   <FileText className="w-4 h-4 text-gray-500" />
-                  وصف الصيانة / القطع <span className="text-red-500">*</span>
+                  وصف الصيانة أو القطع أو ملاحظات <span className="text-red-500">*</span>
                 </label>
-                <textarea 
-                  value={formData.description} 
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })} 
-                  rows={4} 
-                  required 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]" 
-                  placeholder="اكتب تفاصيل الصيانة أو القطع المستبدلة..." 
-                />
+                {showRepairTypeField ? (
+                  <>
+                    <div className="mb-2 p-3 bg-gray-50 rounded-lg border border-gray-200 min-h-[80px] text-sm text-gray-700 whitespace-pre-wrap">
+                      {repairTypeSelections.length > 0 ? (
+                        repairTypeSelections.map((s) => s.label).join('، ')
+                      ) : (
+                        <span className="text-gray-400">اختر أنواع الإصلاح أعلاه لإضافتها تلقائياً</span>
+                      )}
+                    </div>
+                    <textarea
+                      value={descriptionNotes}
+                      onChange={(e) => setDescriptionNotes(e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]"
+                      placeholder="أضف ملاحظات إضافية إن وجدت..."
+                      dir="rtl"
+                    />
+                  </>
+                ) : (
+                  <textarea 
+                    value={formData.description} 
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })} 
+                    rows={4} 
+                    required 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]" 
+                    placeholder="اكتب تفاصيل الصيانة أو القطع أو الملاحظات..." 
+                    dir="rtl"
+                  />
+                )}
               </div>
 
               {/* Invoice Upload */}

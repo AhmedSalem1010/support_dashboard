@@ -1,12 +1,17 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Plus, FileText, User, Car, Calendar, Package, Search, Filter, Download, X, Eye, Edit, Trash2, CheckCircle, AlertCircle, Clock, TrendingUp, Users, Shield, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, FileText, User, Car, Calendar, Package, Search, Filter, Download, X, Eye, Edit, XCircle, CheckCircle, AlertCircle, Clock, TrendingUp, Users, Shield, RefreshCw, Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
+import { useAuthorizations } from '@/hooks/useAuthorizations';
+import { cancelAuthorization } from '@/lib/api/authorizations';
+import { useVehiclesList } from '@/hooks/useVehiclesList';
+import { AUTHORIZATION_STATUS_LABELS, AUTHORIZATION_TYPE_LABELS, statusToArabic } from '@/lib/enums';
+import type { AuthorizationDisplay } from '@/lib/authorizations/mappers';
 
 function addDaysToDate(dateStr: string, days: number): string {
   if (!dateStr || days <= 0) return '';
@@ -23,12 +28,47 @@ function getDaysRemaining(endDate: string): number {
 }
 
 export function Authorizations() {
+  const { vehicleOptions } = useVehiclesList();
+  const [filters, setFilters] = useState({
+    authorizationType: '',
+    authorizationStatus: '',
+    vehiclePlateName: '',
+    driverName: '',
+    driverJisrId: '',
+    driverIdReceivedFromName: '',
+    userDriverName: '',
+    userDriverReceivedFromName: '',
+    authorizationStartDate: '',
+    authorizationEndDate: '',
+    authorizationEndDateFrom: '',
+    authorizationEndDateTo: '',
+  });
+
+  const updateFilter = (key: keyof typeof filters, value: string) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+    setPage(1);
+  };
+
+  const { authorizations, meta, isLoading, error, refetch, page, setPage } = useAuthorizations({
+    limit: 10,
+    authorizationType: filters.authorizationType || undefined,
+    authorizationStatus: filters.authorizationStatus || undefined,
+    vehiclePlateName: filters.vehiclePlateName || undefined,
+    driverName: filters.driverName || undefined,
+    driverJisrId: filters.driverJisrId || undefined,
+    driverIdReceivedFromName: filters.driverIdReceivedFromName || undefined,
+    userDriverName: filters.userDriverName || undefined,
+    userDriverReceivedFromName: filters.userDriverReceivedFromName || undefined,
+    authorizationStartDate: filters.authorizationStartDate || undefined,
+    authorizationEndDate: filters.authorizationEndDate || undefined,
+    authorizationEndDateFrom: filters.authorizationEndDateFrom || undefined,
+    authorizationEndDateTo: filters.authorizationEndDateTo || undefined,
+  });
+
   const [showModal, setShowModal] = useState(false);
-  const [selectedAuth, setSelectedAuth] = useState<any>(null);
+  const [selectedAuth, setSelectedAuth] = useState<AuthorizationDisplay | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterType, setFilterType] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [currentStep, setCurrentStep] = useState(1);
   
@@ -38,90 +78,48 @@ export function Authorizations() {
 
   const endDate = startDate && authorizationDays > 0 ? addDaysToDate(startDate, authorizationDays) : '';
 
-  const authorizations = [
-    {
-      id: 1,
-      authNumber: 'AUTH-2024-001',
-      vehicle: 'ABC 1234',
-      vehicleModel: 'تويوتا كامري',
-      driver: 'محمد أحمد',
-      supervisor: 'خالد محمد',
-      startDate: '2024-01-01',
-      endDate: '2024-06-30',
-      type: 'تم + محلي',
-      status: 'ساري',
-      tammAuthorized: 'محمد أحمد',
-      workersCount: 2,
-      equipment: { bleacher: 2, vacuum: 1, bigLadder: 1 },
-    },
-    {
-      id: 2,
-      authNumber: 'AUTH-2024-002',
-      vehicle: 'XYZ 5678',
-      vehicleModel: 'هوندا أكورد',
-      driver: 'عبدالله سعيد',
-      supervisor: 'أحمد علي',
-      startDate: '2024-01-15',
-      endDate: '2024-07-15',
-      type: 'محلي فقط',
-      status: 'ساري',
-      tammAuthorized: '-',
-      workersCount: 1,
-      equipment: { bleacher: 1, vacuum: 1, bigLadder: 0 },
-    },
-    {
-      id: 3,
-      authNumber: 'AUTH-2024-003',
-      vehicle: 'DEF 9012',
-      vehicleModel: 'نيسان التيما',
-      driver: 'سعيد محمود',
-      supervisor: 'خالد محمد',
-      startDate: '2023-12-01',
-      endDate: '2024-02-15',
-      type: 'تم + محلي',
-      status: 'منتهي',
-      tammAuthorized: 'سعيد محمود',
-      workersCount: 2,
-      equipment: { bleacher: 2, vacuum: 2, bigLadder: 1 },
-    },
-    {
-      id: 4,
-      authNumber: 'AUTH-2024-004',
-      vehicle: 'GHI 3456',
-      vehicleModel: 'فورد إكسبلورر',
-      driver: 'أحمد عبدالله',
-      supervisor: 'محمد سعيد',
-      startDate: '2024-02-01',
-      endDate: '2024-03-01',
-      type: 'محلي فقط',
-      status: 'قريب الانتهاء',
-      tammAuthorized: '-',
-      workersCount: 1,
-      equipment: { bleacher: 1, vacuum: 0, bigLadder: 1 },
-    },
-  ];
+  const handleCancelAuthorization = async (auth: AuthorizationDisplay) => {
+    if (!confirm(`هل تريد إلغاء تفويض المركبة "${auth.vehicle}"؟`)) return;
+    setCancellingId(auth.id);
+    try {
+      await cancelAuthorization(auth.id);
+      await refetch();
+      setSelectedAuth(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'فشل إلغاء التفويض');
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
-  // Filter authorizations
-  const filteredAuthorizations = useMemo(() => {
-    return authorizations.filter(auth => {
-      const matchesSearch = 
-        auth.authNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        auth.vehicle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        auth.driver.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesStatus = filterStatus === '' || auth.status === filterStatus;
-      const matchesType = filterType === '' || auth.type === filterType;
-      
-      return matchesSearch && matchesStatus && matchesType;
+  const hasActiveFilters = Object.values(filters).some(Boolean);
+  const clearFilters = () => {
+    setFilters({
+      authorizationType: '',
+      authorizationStatus: '',
+      vehiclePlateName: '',
+      driverName: '',
+      driverJisrId: '',
+      driverIdReceivedFromName: '',
+      userDriverName: '',
+      userDriverReceivedFromName: '',
+      authorizationStartDate: '',
+      authorizationEndDate: '',
+      authorizationEndDateFrom: '',
+      authorizationEndDateTo: '',
     });
-  }, [searchTerm, filterStatus, filterType]);
+    setPage(1);
+  };
 
-  // Statistics
+  // البيانات من API بعد التصفية من الخادم
+  const displayedAuthorizations = authorizations;
+
+  // Statistics (من الصفحة الحالية)
   const stats = {
     active: authorizations.filter(a => a.status === 'ساري').length,
     expiringSoon: authorizations.filter(a => a.status === 'قريب الانتهاء').length,
     expired: authorizations.filter(a => a.status === 'منتهي').length,
-    total: authorizations.length,
+    total: meta?.total ?? authorizations.length,
   };
 
   const columns = [
@@ -215,13 +213,14 @@ export function Authorizations() {
       label: 'الحالة',
       render: (value: unknown) => {
         const v = String(value);
-        const variant = v === 'ساري' ? 'success' : v === 'قريب الانتهاء' ? 'warning' : 'default';
-        const icon = v === 'ساري' ? CheckCircle : v === 'قريب الانتهاء' ? AlertCircle : X;
+        const displayStatus = statusToArabic(v);
+        const variant = displayStatus === 'ساري' ? 'success' : displayStatus === 'قريب الانتهاء' ? 'warning' : displayStatus === 'ملغي' || displayStatus === 'مرفوض' ? 'default' : 'info';
+        const icon = displayStatus === 'ساري' ? CheckCircle : displayStatus === 'قريب الانتهاء' ? AlertCircle : X;
         const Icon = icon;
         return (
           <Badge variant={variant} className="flex items-center gap-1.5">
             <Icon className="w-3.5 h-3.5" />
-            {v}
+            {displayStatus}
           </Badge>
         );
       },
@@ -244,12 +243,17 @@ export function Authorizations() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              // Edit logic
+              handleCancelAuthorization(row);
             }}
-            className="p-2 hover:bg-green-50 rounded-lg transition-colors group"
-            title="تعديل"
+            disabled={cancellingId === row.id || row.status === 'منتهي' || row.status === 'ملغي'}
+            className="p-2 hover:bg-red-50 rounded-lg transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
+            title="إلغاء التفويض"
           >
-            <Edit className="w-4 h-4 text-gray-400 group-hover:text-green-600" />
+            {cancellingId === row.id ? (
+              <Loader2 className="w-4 h-4 text-red-500 animate-spin" />
+            ) : (
+              <XCircle className="w-4 h-4 text-gray-400 group-hover:text-red-600" />
+            )}
           </button>
           <button
             onClick={(e) => {
@@ -277,7 +281,7 @@ export function Authorizations() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900">إدارة التفويض</h1>
-              <p className="text-sm text-[#617c96]">تفويض المركبات وجرد العهدة - {authorizations.length} تفويض</p>
+              <p className="text-sm text-[#617c96]">تفويض المركبات وجرد العهدة - {meta?.total ?? 0} تفويض</p>
             </div>
           </div>
         </div>
@@ -314,7 +318,7 @@ export function Authorizations() {
           >
             <Filter className="w-4 h-4 ml-1 sm:ml-2" />
             <span className="hidden xs:inline">تصفية</span>
-            {(filterStatus || filterType) && (
+            {hasActiveFilters && (
               <span className="absolute -top-1 -right-1 w-2 h-2 bg-[#09b9b5] rounded-full"></span>
             )}
           </Button>
@@ -372,7 +376,7 @@ export function Authorizations() {
                 {stats.active}
               </p>
               <p className="text-xs text-green-600 mt-1 font-semibold">
-                {Math.round((stats.active / stats.total) * 100)}% نشطة
+                {stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0}% نشطة
               </p>
             </div>
             <div className="relative">
@@ -421,78 +425,164 @@ export function Authorizations() {
         </Card>
       </div>
 
-      {/* Search and Filters */}
+      {/* Filters */}
       <Card className="border-t-4 border-[#09b9b5]">
         <div className="space-y-4">
-          {/* Search Bar */}
-          <div className="relative">
-            <Search className="absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="ابحث عن تفويض برقم التفويض، المركبة، أو السائق..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pr-12 pl-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#09b9b5] focus:border-transparent transition-all text-right"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="absolute left-4 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <X className="w-4 h-4 text-gray-400" />
-              </button>
-            )}
-          </div>
-
-          {/* Filters */}
           {showFilters && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 p-4 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-100 animate-slideDown">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 p-4 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-100 animate-slideDown">
               <div>
                 <label className="block text-sm font-medium text-[#4d647c] mb-2">نوع التفويض</label>
                 <select 
-                  value={filterType}
-                  onChange={(e) => setFilterType(e.target.value)}
+                  value={filters.authorizationType}
+                  onChange={(e) => updateFilter('authorizationType', e.target.value)}
                   className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
                 >
                   <option value="">الكل</option>
-                  <option value="تم + محلي">تم + محلي</option>
-                  <option value="محلي فقط">محلي فقط</option>
+                  {Object.entries(AUTHORIZATION_TYPE_LABELS).map(([val, label]) => (
+                    <option key={val} value={val}>{label}</option>
+                  ))}
                 </select>
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-[#4d647c] mb-2">الحالة</label>
+                <label className="block text-sm font-medium text-[#4d647c] mb-2">حالة التفويض</label>
                 <select 
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
+                  value={filters.authorizationStatus}
+                  onChange={(e) => updateFilter('authorizationStatus', e.target.value)}
                   className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
                 >
                   <option value="">الكل</option>
-                  <option value="ساري">ساري</option>
-                  <option value="قريب الانتهاء">قريب الانتهاء</option>
-                  <option value="منتهي">منتهي</option>
+                  {Object.entries(AUTHORIZATION_STATUS_LABELS).map(([val, label]) => (
+                    <option key={val} value={val}>{label}</option>
+                  ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#4d647c] mb-2">المركبة</label>
-                <select className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white">
-                  <option value="">الكل</option>
-                  <option value="ABC 1234">ABC 1234</option>
-                  <option value="XYZ 5678">XYZ 5678</option>
-                </select>
+                <label className="block text-sm font-medium text-[#4d647c] mb-2">لوحة المركبة</label>
+                <input
+                  type="text"
+                  value={filters.vehiclePlateName}
+                  onChange={(e) => updateFilter('vehiclePlateName', e.target.value)}
+                  placeholder="مثال: ب ع ق 2589"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#4d647c] mb-2">اسم السائق</label>
+                <input
+                  type="text"
+                  value={filters.driverName}
+                  onChange={(e) => updateFilter('driverName', e.target.value)}
+                  placeholder="بحث بالاسم"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#4d647c] mb-2">رقم السائق (جسر)</label>
+                <input
+                  type="text"
+                  value={filters.driverJisrId}
+                  onChange={(e) => updateFilter('driverJisrId', e.target.value)}
+                  placeholder="مثال: 755"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#4d647c] mb-2">اسم المسلم منه</label>
+                <input
+                  type="text"
+                  value={filters.driverIdReceivedFromName}
+                  onChange={(e) => updateFilter('driverIdReceivedFromName', e.target.value)}
+                  placeholder="بحث بالاسم"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#4d647c] mb-2">اسم سائق المستخدم</label>
+                <input
+                  type="text"
+                  value={filters.userDriverName}
+                  onChange={(e) => updateFilter('userDriverName', e.target.value)}
+                  placeholder="بحث بالاسم"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#4d647c] mb-2">اسم المسلم منه للمستخدم</label>
+                <input
+                  type="text"
+                  value={filters.userDriverReceivedFromName}
+                  onChange={(e) => updateFilter('userDriverReceivedFromName', e.target.value)}
+                  placeholder="بحث بالاسم"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#4d647c] mb-2">تاريخ البداية</label>
+                <input
+                  type="date"
+                  value={filters.authorizationStartDate}
+                  onChange={(e) => updateFilter('authorizationStartDate', e.target.value)}
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#4d647c] mb-2">تاريخ انتهاء من</label>
+                <input
+                  type="date"
+                  value={filters.authorizationEndDateFrom}
+                  onChange={(e) => updateFilter('authorizationEndDateFrom', e.target.value)}
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#4d647c] mb-2">تاريخ انتهاء إلى</label>
+                <input
+                  type="date"
+                  value={filters.authorizationEndDateTo}
+                  onChange={(e) => updateFilter('authorizationEndDateTo', e.target.value)}
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
+                />
+              </div>
+
+              <div className="sm:col-span-2 lg:col-span-1 flex flex-col justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = new Date();
+                    const toDate = new Date(today);
+                    toDate.setDate(toDate.getDate() + 30);
+                    const fromStr = today.toISOString().split('T')[0];
+                    const toStr = toDate.toISOString().split('T')[0];
+                    setFilters((prev) => ({
+                      ...prev,
+                      authorizationStatus: 'active',
+                      authorizationEndDateFrom: fromStr,
+                      authorizationEndDateTo: toStr,
+                    }));
+                    setPage(1);
+                  }}
+                  className="px-4 py-2.5 text-sm font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-lg border border-orange-200 transition-colors"
+                >
+                  قريب الانتهاء (اليوم ← +30 يوم)
+                </button>
               </div>
 
               {/* Reset Button */}
-              {(filterStatus || filterType) && (
+              {hasActiveFilters && (
                 <div className="sm:col-span-3 flex justify-end">
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      setFilterStatus('');
-                      setFilterType('');
-                      setSearchTerm('');
-                    }}
+                    onClick={clearFilters}
                     className="text-sm"
                   >
                     <X className="w-4 h-4 ml-2" />
@@ -506,25 +596,37 @@ export function Authorizations() {
       </Card>
 
       {/* Results Summary */}
-      {searchTerm && (
+      {hasActiveFilters && meta && (
         <div className="flex items-center gap-2 text-sm text-gray-600 bg-blue-50 px-4 py-2 rounded-lg border border-blue-100">
           <Search className="w-4 h-4 text-blue-600" />
-          <span>تم العثور على <strong className="text-blue-600">{filteredAuthorizations.length}</strong> نتيجة</span>
+          <span>تم العثور على <strong className="text-blue-600">{meta.total}</strong> نتيجة</span>
         </div>
       )}
 
+      {/* Loading / Error */}
+      {isLoading && (
+        <Card className="flex items-center justify-center py-16">
+          <Loader2 className="w-10 h-10 animate-spin text-[#09b9b5]" />
+        </Card>
+      )}
+      {error && (
+        <Card className="border-red-200 bg-red-50 text-red-700 py-4 px-4">
+          {error}
+        </Card>
+      )}
+
       {/* Table/Grid View */}
-      {viewMode === 'table' ? (
+      {!isLoading && !error && (viewMode === 'table' ? (
         <Card>
           <Table 
             columns={columns} 
-            data={filteredAuthorizations} 
+            data={displayedAuthorizations} 
             onRowClick={(row) => setSelectedAuth(row)} 
           />
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredAuthorizations.map((auth, index) => {
+          {displayedAuthorizations.map((auth, index) => {
             const daysRemaining = getDaysRemaining(auth.endDate);
             return (
               <Card 
@@ -546,9 +648,9 @@ export function Authorizations() {
                       </div>
                     </div>
                     <Badge 
-                      variant={auth.status === 'ساري' ? 'success' : auth.status === 'قريب الانتهاء' ? 'warning' : 'default'}
+                      variant={(s => s === 'ساري' ? 'success' : s === 'قريب الانتهاء' ? 'warning' : 'default')(statusToArabic(auth.status))}
                     >
-                      {auth.status}
+                      {statusToArabic(auth.status)}
                     </Badge>
                   </div>
                 </div>
@@ -624,6 +726,83 @@ export function Authorizations() {
             );
           })}
         </div>
+      ))}
+
+      {/* Pagination */}
+      {!isLoading && !error && meta && meta.totalPages > 1 && (
+        <Card>
+          <div className="flex items-center justify-center px-6 py-4">
+            <nav className="flex items-center gap-1" aria-label="ترقيم الصفحات">
+              <button
+                type="button"
+                onClick={() => setPage(1)}
+                disabled={!meta.hasPreviousPage}
+                className="p-2 rounded-xl text-gray-500 hover:bg-[#09b9b5]/10 hover:text-[#09b9b5] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-all duration-200"
+                title="الأولى"
+              >
+                <ChevronsRight className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setPage(page - 1)}
+                disabled={!meta.hasPreviousPage}
+                className="p-2 rounded-xl text-gray-500 hover:bg-[#09b9b5]/10 hover:text-[#09b9b5] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-all duration-200"
+                title="السابق"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+              <div className="flex items-center gap-1 mx-2">
+                {Array.from({ length: meta.totalPages }, (_, i) => i + 1)
+                  .filter((p) => {
+                    if (meta.totalPages <= 7) return true;
+                    if (p === 1 || p === meta.totalPages) return true;
+                    if (Math.abs(p - meta.page) <= 2) return true;
+                    return false;
+                  })
+                  .map((p, idx, arr) => {
+                    const prev = arr[idx - 1];
+                    const showEllipsis = prev != null && p - prev > 1;
+                    return (
+                      <span key={p} className="flex items-center gap-0.5">
+                        {showEllipsis && (
+                          <span className="px-2 text-gray-400 text-sm">...</span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setPage(p)}
+                          className={`min-w-[2.25rem] h-9 px-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                            meta.page === p
+                              ? 'bg-[#09b9b5] text-white shadow-md shadow-[#09b9b5]/25'
+                              : 'text-gray-600 hover:bg-[#09b9b5]/10 hover:text-[#09b9b5]'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      </span>
+                    );
+                  })}
+              </div>
+              <button
+                type="button"
+                onClick={() => setPage(page + 1)}
+                disabled={!meta.hasNextPage}
+                className="p-2 rounded-xl text-gray-500 hover:bg-[#09b9b5]/10 hover:text-[#09b9b5] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-all duration-200"
+                title="التالي"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setPage(meta.totalPages)}
+                disabled={!meta.hasNextPage}
+                className="p-2 rounded-xl text-gray-500 hover:bg-[#09b9b5]/10 hover:text-[#09b9b5] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-all duration-200"
+                title="الأخيرة"
+              >
+                <ChevronsLeft className="w-5 h-5" />
+              </button>
+            </nav>
+          </div>
+        </Card>
       )}
 
       {/* Authorization Details Modal */}
@@ -653,8 +832,8 @@ export function Authorizations() {
                   <h2 className="text-2xl font-bold mb-1">{selectedAuth.authNumber}</h2>
                   <p className="text-white/90">{selectedAuth.vehicleModel}</p>
                   <div className="flex gap-2 mt-2">
-                    <Badge variant={selectedAuth.status === 'ساري' ? 'success' : 'warning'} className="bg-white/20 border-white/30">
-                      {selectedAuth.status}
+                    <Badge variant={(s => s === 'ساري' ? 'success' : s === 'قريب الانتهاء' ? 'warning' : 'default')(statusToArabic(selectedAuth.status))} className="bg-white/20 border-white/30">
+                      {statusToArabic(selectedAuth.status)}
                     </Badge>
                     <Badge variant="info" className="bg-white/20 border-white/30">
                       {selectedAuth.type}
@@ -719,24 +898,14 @@ export function Authorizations() {
                 )}
               </div>
 
-              {/* Equipment Inventory */}
+              {/* Equipment Inventory - غير متوفر من API حالياً */}
               <div className="space-y-3">
                 <h3 className="font-bold text-lg text-gray-900 flex items-center gap-2">
                   <Package className="w-5 h-5 text-[#09b9b5]" />
                   جرد العهدة
                 </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {Object.entries(selectedAuth.equipment).map(([key, value]) => (
-                    <div key={key} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <Package className="w-4 h-4 text-[#09b9b5]" />
-                        <span className="text-sm text-gray-700">
-                          {key === 'bleacher' ? 'البليشر' : key === 'vacuum' ? 'الباكيوم' : 'السلم الكبير'}
-                        </span>
-                      </div>
-                      <span className="font-bold text-gray-900">{value as number}</span>
-                    </div>
-                  ))}
+                <div className="p-4 bg-gray-50 rounded-xl text-center text-gray-500">
+                  جرد العهدة غير متوفر من السيرفر حالياً
                 </div>
               </div>
 
@@ -867,8 +1036,9 @@ export function Authorizations() {
                       </label>
                       <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]">
                         <option value="">اختر المركبة</option>
-                        <option value="1">ABC 1234 - تويوتا كامري</option>
-                        <option value="2">XYZ 5678 - هوندا أكورد</option>
+                        {vehicleOptions.map((v) => (
+                          <option key={v.value} value={v.value}>{v.label}</option>
+                        ))}
                       </select>
                     </div>
 

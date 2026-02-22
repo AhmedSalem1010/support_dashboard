@@ -6,8 +6,11 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
+import { useVehiclesList } from '@/hooks/useVehiclesList';
+import { ACCIDENT_STATUS_LABELS, ACCIDENT_SEVERITY_LABELS, statusToArabic } from '@/lib/enums';
 
 export function Accidents() {
+  const { vehicleOptions } = useVehiclesList();
   const [showModal, setShowModal] = useState(false);
   const [selectedAccident, setSelectedAccident] = useState<any>(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -118,7 +121,7 @@ export function Accidents() {
         accident.location.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesSeverity = filterSeverity === '' || accident.severity === filterSeverity;
-      const matchesStatus = filterStatus === '' || accident.status === filterStatus;
+      const matchesStatus = filterStatus === '' || statusToArabic(accident.status) === filterStatus;
       
       return matchesSearch && matchesSeverity && matchesStatus;
     });
@@ -221,10 +224,11 @@ export function Accidents() {
       label: 'الحالة',
       render: (value: unknown, row: any) => {
         const v = String(value);
-        const variant = v === 'مغلق' ? 'default' as const : 'info' as const;
+        const displayStatus = statusToArabic(v);
+        const variant = displayStatus === 'مغلق' ? 'default' as const : 'info' as const;
         return (
           <div className="space-y-1">
-            <Badge variant={variant}>{v}</Badge>
+            <Badge variant={variant}>{displayStatus}</Badge>
             <p className="text-xs text-gray-500">{row.injuries}</p>
           </div>
         );
@@ -509,9 +513,9 @@ export function Accidents() {
                   className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-200 bg-white"
                 >
                   <option value="">الكل</option>
-                  <option value="بسيط">بسيط</option>
-                  <option value="متوسط">متوسط</option>
-                  <option value="خطير">خطير</option>
+                  {Object.entries(ACCIDENT_SEVERITY_LABELS).map(([val, label]) => (
+                    <option key={val} value={label}>{label}</option>
+                  ))}
                 </select>
               </div>
               
@@ -523,8 +527,9 @@ export function Accidents() {
                   className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-200 bg-white"
                 >
                   <option value="">الكل</option>
-                  <option value="قيد المتابعة">قيد المتابعة</option>
-                  <option value="مغلق">مغلق</option>
+                  {Object.entries(ACCIDENT_STATUS_LABELS).map(([val, label]) => (
+                    <option key={val} value={label}>{label}</option>
+                  ))}
                 </select>
               </div>
 
@@ -748,10 +753,10 @@ export function Accidents() {
 
                 {/* Status */}
                 <Badge 
-                  variant={accident.status === 'مغلق' ? 'default' : 'info'}
+                  variant={statusToArabic(accident.status) === 'مغلق' ? 'default' : 'info'}
                   className="w-full justify-center"
                 >
-                  {accident.status}
+                  {statusToArabic(accident.status)}
                 </Badge>
 
                 {/* Actions */}
@@ -794,16 +799,16 @@ export function Accidents() {
                   <div className="flex gap-2 mt-2">
                     <Badge 
                       variant={
-                        selectedAccident.severity === 'بسيط' ? 'success' : 
-                        selectedAccident.severity === 'متوسط' ? 'warning' : 
-                        'danger'
+                        (s => s === 'بسيط' ? 'success' : s === 'متوسط' ? 'warning' : 'danger')(
+                          statusToArabic(selectedAccident.severity)
+                        )
                       }
                       className="bg-white/20 border-white/30"
                     >
-                      {selectedAccident.severity}
+                      {statusToArabic(selectedAccident.severity)}
                     </Badge>
                     <Badge variant="info" className="bg-white/20 border-white/30">
-                      {selectedAccident.status}
+                      {statusToArabic(selectedAccident.status)}
                     </Badge>
                   </div>
                 </div>
@@ -965,9 +970,9 @@ export function Accidents() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
                     >
                       <option value="">اختر المركبة</option>
-                      <option value="1">ABC 1234 - تويوتا كامري</option>
-                      <option value="2">XYZ 5678 - هوندا أكورد</option>
-                      <option value="3">DEF 9012 - نيسان التيما</option>
+                      {vehicleOptions.map((v) => (
+                        <option key={v.value} value={v.value}>{v.label}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -1029,9 +1034,9 @@ export function Accidents() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
                     >
                       <option value="">اختر المستوى</option>
-                      <option value="simple">بسيط</option>
-                      <option value="medium">متوسط</option>
-                      <option value="dangerous">خطير</option>
+                      {Object.entries(ACCIDENT_SEVERITY_LABELS).map(([val, label]) => (
+                        <option key={val} value={val}>{label}</option>
+                      ))}
                     </select>
                   </div>
 

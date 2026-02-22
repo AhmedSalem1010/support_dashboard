@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
+import { USER_STATUS_LABELS, USER_ROLE_LABELS, statusToArabic } from '@/lib/enums';
 
 export function Users() {
   const [showFilters, setShowFilters] = useState(false);
@@ -56,7 +57,7 @@ export function Users() {
       key: 'status',
       label: 'الحالة',
       render: (value: unknown) => (
-        <Badge variant={String(value) === 'نشط' ? 'success' : 'default'}>{String(value)}</Badge>
+        <Badge variant={(s => s === 'نشط' ? 'success' : s === 'موقوف' ? 'warning' : 'default')(statusToArabic(String(value)))}>{statusToArabic(String(value))}</Badge>
       ),
     },
   ];
@@ -164,16 +165,17 @@ export function Users() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">الدور</label>
                 <select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]">
-                  <option value="driver">سائق</option>
-                  <option value="supervisor">مشرف</option>
-                  <option value="admin">مدير</option>
+                  {Object.entries(USER_ROLE_LABELS).map(([val, label]) => (
+                    <option key={val} value={val}>{label}</option>
+                  ))}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">الحالة</label>
                 <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]">
-                  <option value="active">نشط</option>
-                  <option value="inactive">غير نشط</option>
+                  {Object.entries(USER_STATUS_LABELS).map(([val, label]) => (
+                    <option key={val} value={val}>{label}</option>
+                  ))}
                 </select>
               </div>
               <div className="flex justify-end gap-3 pt-4">

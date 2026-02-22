@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type FormEvent, type ChangeEvent } from "react";
+import { useVehiclesList } from "@/hooks/useVehiclesList";
 
 // --- Types ---
 interface VehicleInfo {
@@ -172,11 +173,7 @@ export default function Inspection() {
   const [accommodationImages, setAccommodationImages] = useState<File[]>([]);
   const [accommodationVideo, setAccommodationVideo] = useState<File | null>(null);
 
-  const mockVehicles = [
-    { id: "1", plateName: "مركبة 1 — ABC 1234" },
-    { id: "2", plateName: "مركبة 2 — XYZ 5678" },
-    { id: "3", plateName: "مركبة 3 — DEF 9012" },
-  ];
+  const { vehicles, vehicleOptions } = useVehiclesList();
 
   const equipmentLabels: Record<EquipmentKey, string> = {
     bakium: "باكيوم", galandar: "قلندر", blicher: "بليشر",
@@ -190,9 +187,18 @@ export default function Inspection() {
 
   const handleVehicleSelect = (id: string) => {
     setSelectedVehicle(id);
-    setVehicleInfo(id ? {
-      id, plateNumber: "ABC 1234", manufacturer: "تويوتا", model: "هايلوكس", year: 2023,
-      driver: { name: "أحمد محمد علي", phone: "0501234567", team: "فريق النظافة — المنطقة الشمالية" },
+    if (!id) {
+      setVehicleInfo(null);
+      return;
+    }
+    const v = vehicles.find((x) => x.id === id);
+    setVehicleInfo(v ? {
+      id: v.id,
+      plateNumber: v.plateName || v.plateNumber,
+      manufacturer: v.manufacturer,
+      model: v.model,
+      year: v.year,
+      driver: { name: "—", phone: "—", team: "—" },
     } : null);
   };
 
@@ -334,7 +340,7 @@ export default function Inspection() {
                       style={{ width: "100%", padding: "12px 16px", border: "1.5px solid #e5e7eb", borderRadius: 10, fontFamily: "inherit", fontSize: 15, color: "#1f2937", background: "white", cursor: "pointer", transition: "all 0.2s", outline: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M6 8L1 3h10z' fill='%236b7280'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "left 14px center", paddingLeft: "42px" }}
                     >
                       <option value="">— اختر المركبة —</option>
-                      {mockVehicles.map(v => <option key={v.id} value={v.id}>{v.plateName}</option>)}
+                      {vehicleOptions.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
                     </select>
                   </div>
 

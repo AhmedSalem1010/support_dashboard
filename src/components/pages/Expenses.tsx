@@ -1,4 +1,7 @@
+'use client';
+
 import { useState, type FormEvent } from "react";
+import { useVehiclesList } from "@/hooks/useVehiclesList";
 
 // --- Icons ---
 const PlusIcon = () => (
@@ -44,6 +47,7 @@ const typeBadge: Record<ExpenseType, { bg: string; color: string; border: string
 };
 
 export function Expenses() {
+  const { vehicleOptions } = useVehiclesList();
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ vehicleId:"", category:"fuel", amount:"", date:new Date().toISOString().split("T")[0], description:"" });
   const [saved, setSaved] = useState(false);
@@ -332,7 +336,7 @@ export function Expenses() {
             {/* Modal Body */}
             <form onSubmit={handleSubmit} style={{padding:"clamp(16px,3vw,24px)",display:"flex",flexDirection:"column",gap:"clamp(12px,2.5vw,18px)"}}>
               {[
-                {label:"المركبة",required:true,el:<select value={formData.vehicleId} onChange={e=>setFormData({...formData,vehicleId:e.target.value})} className="e-input" required><option value="">اختر المركبة</option><option value="1">ABC 1234</option><option value="2">XYZ 5678</option><option value="3">DEF 9012</option></select>},
+                {label:"المركبة",required:true,el:(<select value={formData.vehicleId} onChange={e=>setFormData({...formData,vehicleId:e.target.value})} className="e-input" required><option value="">اختر المركبة</option>{vehicleOptions.map(v=><option key={v.value} value={v.value}>{v.label}</option>)}</select>)},
                 {label:"نوع المصروف",el:<select value={formData.category} onChange={e=>setFormData({...formData,category:e.target.value})} className="e-input"><option value="fuel">وقود</option><option value="oil">زيت</option><option value="maintenance">صيانة</option><option value="other">أخرى</option></select>},
                 {label:"المبلغ (ريال)",required:true,el:<input type="number" min="0" step="0.01" value={formData.amount} onChange={e=>setFormData({...formData,amount:e.target.value})} required className="e-input" placeholder="0.00"/>},
                 {label:"التاريخ",required:true,el:<input type="date" value={formData.date} onChange={e=>setFormData({...formData,date:e.target.value})} required className="e-input"/>},
