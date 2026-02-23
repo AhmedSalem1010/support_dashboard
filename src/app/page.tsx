@@ -6,7 +6,7 @@ import Dashboard from '@/components/pages/Dashboard';
 import { Vehicles } from '@/components/pages/Vehicles';
 import { Users } from '@/components/pages/Users';
 import { Authorizations } from '@/components/pages/Authorizations';
-import Inspection from '@/components/pages/Inspection';
+import { Equipment } from '@/components/pages/Equipment';
 import { Maintenance } from '@/components/pages/Maintenance';
 import { Accidents } from '@/components/pages/Accidents';
 import { Expenses } from '@/components/pages/Expenses';
@@ -47,8 +47,8 @@ export default function HomePage() {
         return <Users />;
       case 'authorizations':
         return <Authorizations />;
-      case 'inspection':
-        return <Inspection />;
+      case 'equipment':
+        return <Equipment />;
       case 'maintenance':
         return <Maintenance />;
       case 'accidents':
@@ -71,7 +71,7 @@ export default function HomePage() {
         onClose={() => setSidebarOpen(false)}
         onMenuClick={() => setSidebarOpen(true)}
       />
-      <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-auto">
+      <main className="flex-1 p-3 sm:p-4 md:p-6">
         {renderPage()}
       </main>
     </div>

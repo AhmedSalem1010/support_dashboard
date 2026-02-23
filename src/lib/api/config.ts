@@ -3,6 +3,8 @@
  * يمكن تغيير القيمة من خلال متغيرات البيئة
  */
 
+import axios from 'axios';
+
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5050';
 
 const TOKEN_STORAGE_KEY = 'auth_token';
@@ -60,3 +62,21 @@ export const apiConfig = {
     Accept: 'application/json',
   },
 } as const;
+
+/** إنشاء Axios instance مع interceptors */
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: apiConfig.timeout,
+  headers: apiConfig.headers,
+});
+
+/** إضافة التوكن تلقائياً لكل طلب */
+api.interceptors.request.use((config) => {
+  const token = getAuthToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+export default api;
