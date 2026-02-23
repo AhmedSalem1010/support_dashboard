@@ -11,6 +11,7 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { RepairTypeSelector, type RepairTypeItem } from '@/components/ui/RepairTypeSelector';
 import { useVehiclesList } from '@/hooks/useVehiclesList';
 import { MAINTENANCE_STATUS_LABELS, statusToArabic } from '@/lib/enums';
+import { Portal } from '@/components/ui/Portal';
 
 export function Maintenance() {
   const [showModal, setShowModal] = useState(false);
@@ -780,7 +781,7 @@ export function Maintenance() {
           {filteredRecords.map((record, index) => (
             <Card 
               key={record.id}
-              className="group cursor-pointer hover:shadow-2xl transition-all duration-300 border-t-4 border-[#09b9b5] overflow-hidden"
+              className="group cursor-pointer hover:shadow-lg transition-all duration-300 border-t-4 border-[#09b9b5] overflow-hidden"
               style={{ animationDelay: `${index * 50}ms` }}
               onClick={() => setSelectedMaintenance(record)}
             >
@@ -874,12 +875,13 @@ export function Maintenance() {
 
       {/* Maintenance Details Modal */}
       {selectedMaintenance && (
+        <Portal>
         <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn" 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4 animate-fadeIn" 
           onClick={() => setSelectedMaintenance(null)}
         >
           <div 
-            className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto animate-slideUp" 
+            className="bg-white rounded-2xl shadow-lg max-w-3xl w-full max-h-[85vh] overflow-y-auto animate-slideUp" 
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -983,16 +985,18 @@ export function Maintenance() {
             </div>
           </div>
         </div>
+      </Portal>
       )}
 
       {/* Add Maintenance Modal */}
       {showModal && (
+        <Portal>
         <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn" 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4 animate-fadeIn" 
           onClick={() => setShowModal(false)}
         >
           <div 
-            className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto animate-slideUp" 
+            className="bg-white rounded-2xl shadow-lg max-w-3xl w-full max-h-[85vh] overflow-y-auto animate-slideUp" 
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -1258,6 +1262,7 @@ export function Maintenance() {
             </form>
           </div>
         </div>
+      </Portal>
       )}
 
       <style jsx global>{`

@@ -1,6 +1,6 @@
 'use client';
 
-import { LayoutDashboard, Car, Users, FileText, Wrench, AlertTriangle, DollarSign, BarChart3, ClipboardCheck, Menu, X, Bell, User, ChevronDown, Search, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Car, Users, FileText, Wrench, AlertTriangle, DollarSign, BarChart3, Menu, X, Bell, User, ChevronDown, Search, Settings, LogOut, Package } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 interface SidebarProps {
@@ -16,7 +16,7 @@ const menuItems = [
   { id: 'vehicles', label: 'المركبات', icon: Car, color: 'from-purple-500 to-purple-600' },
   { id: 'users', label: 'المستخدمين', icon: Users, color: 'from-green-500 to-green-600' },
   { id: 'authorizations', label: 'التفويض', icon: FileText, color: 'from-orange-500 to-orange-600' },
-  { id: 'inspection', label: 'فحص المعدات والسكن', icon: ClipboardCheck, color: 'from-cyan-500 to-cyan-600' },
+  { id: 'equipment', label: 'المعدات والسكن', icon: Package, color: 'from-teal-500 to-teal-600' },
   { id: 'maintenance', label: 'الصيانة', icon: Wrench, color: 'from-yellow-500 to-yellow-600' },
   { id: 'accidents', label: 'الحوادث', icon: AlertTriangle, color: 'from-red-500 to-red-600' },
   { id: 'expenses', label: 'المصاريف', icon: DollarSign, color: 'from-emerald-500 to-emerald-600' },
@@ -88,8 +88,8 @@ export function Sidebar({ currentPage, onPageChange, isOpen, onClose, onMenuClic
       {/* Top Navigation Bar */}
       <header className={`
         bg-gradient-to-r from-[#09b9b5] via-[#0da9a5] to-[#09b9b5]
-        text-white shadow-2xl sticky top-0 z-50 transition-all duration-300
-        ${scrolled ? 'py-2 shadow-xl' : 'py-3'}
+        text-white shadow-lg sticky top-0 z-50 transition-all duration-300
+        ${scrolled ? 'py-2 shadow-md' : 'py-3'}
       `}>
         <div className="flex items-center justify-between gap-2 sm:gap-4 px-3 sm:px-4 md:px-6">
           {/* Logo / Brand - Right side (RTL) */}
@@ -200,7 +200,7 @@ export function Sidebar({ currentPage, onPageChange, isOpen, onClose, onMenuClic
 
               {/* User Dropdown Menu */}
               {showUserMenu && (
-                <div className="absolute left-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-gray-100 py-2 animate-fadeIn">
+                <div className="absolute left-0 mt-2 w-56 bg-white rounded-2xl shadow-lg border border-gray-100 py-2 animate-fadeIn">
                   <div className="px-4 py-3 border-b border-gray-100">
                     <p className="text-sm font-semibold text-gray-800 text-right">أحمد محمد</p>
                     <p className="text-xs text-gray-500 text-right">مدير النظام</p>

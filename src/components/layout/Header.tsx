@@ -1,6 +1,7 @@
 'use client';
 
-import { Menu, Bell, User } from 'lucide-react';
+import { Menu, User } from 'lucide-react';
+import { NotificationButton } from '@/components/ui/NotificationButton';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -26,10 +27,7 @@ export function Header({ onMenuClick }: HeaderProps) {
 
         {/* Actions */}
         <div className="flex items-center gap-2 sm:gap-4">
-          <button className="p-2 rounded-lg hover:bg-gray-100 relative">
-            <Bell className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-[#d32f2f] rounded-full"></span>
-          </button>
+          <NotificationButton />
           <button className="p-2 rounded-lg hover:bg-gray-100">
             <User className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600" />
           </button>

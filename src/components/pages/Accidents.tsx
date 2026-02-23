@@ -8,6 +8,7 @@ import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { useVehiclesList } from '@/hooks/useVehiclesList';
 import { ACCIDENT_STATUS_LABELS, ACCIDENT_SEVERITY_LABELS, statusToArabic } from '@/lib/enums';
+import { Portal } from '@/components/ui/Portal';
 
 export function Accidents() {
   const { vehicleOptions } = useVehiclesList();
@@ -667,7 +668,7 @@ export function Accidents() {
           {filteredAccidents.map((accident, index) => (
             <Card 
               key={accident.id}
-              className="group cursor-pointer hover:shadow-2xl transition-all duration-300 border-t-4 border-red-600 overflow-hidden"
+              className="group cursor-pointer hover:shadow-lg transition-all duration-300 border-t-4 border-red-600 overflow-hidden"
               style={{ animationDelay: `${index * 50}ms` }}
               onClick={() => setSelectedAccident(accident)}
             >
@@ -772,12 +773,13 @@ export function Accidents() {
 
       {/* Accident Details Modal */}
       {selectedAccident && (
+        <Portal>
         <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn" 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4 animate-fadeIn" 
           onClick={() => setSelectedAccident(null)}
         >
           <div 
-            className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-slideUp" 
+            className="bg-white rounded-2xl shadow-lg max-w-4xl w-full max-h-[85vh] overflow-y-auto animate-slideUp" 
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -897,16 +899,18 @@ export function Accidents() {
             </div>
           </div>
         </div>
+      </Portal>
       )}
 
       {/* Add Accident Modal */}
       {showModal && (
+        <Portal>
         <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn" 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4 animate-fadeIn" 
           onClick={() => setShowModal(false)}
         >
           <div 
-            className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto animate-slideUp" 
+            className="bg-white rounded-2xl shadow-lg max-w-3xl w-full max-h-[85vh] overflow-y-auto animate-slideUp" 
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -1162,6 +1166,7 @@ export function Accidents() {
             </form>
           </div>
         </div>
+      </Portal>
       )}
 
       <style jsx global>{`

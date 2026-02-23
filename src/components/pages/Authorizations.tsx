@@ -12,6 +12,9 @@ import { cancelAuthorization } from '@/lib/api/authorizations';
 import { useVehiclesList } from '@/hooks/useVehiclesList';
 import { AUTHORIZATION_STATUS_LABELS, AUTHORIZATION_TYPE_LABELS, statusToArabic } from '@/lib/enums';
 import type { AuthorizationDisplay } from '@/lib/authorizations/mappers';
+import { useNotificationsContext } from '@/components/ui/Notifications';
+import { Portal } from '@/components/ui/Portal';
+import { useAlertDialog } from '@/components/ui/AlertDialog';
 
 function addDaysToDate(dateStr: string, days: number): string {
   if (!dateStr || days <= 0) return '';
@@ -29,15 +32,18 @@ function getDaysRemaining(endDate: string): number {
 
 export function Authorizations() {
   const { vehicleOptions } = useVehiclesList();
+  const { success: showSuccess, error: showError, warning, info, loading } = useNotificationsContext();
+  const { confirm, DialogComponent } = useAlertDialog();
   const [filters, setFilters] = useState({
     authorizationType: '',
     authorizationStatus: '',
-    vehiclePlateName: '',
+    vehiclePlatePart1: '',
+    vehiclePlatePart2: '',
+    vehiclePlatePart3: '',
+    vehiclePlateNumbers: '',
     driverName: '',
     driverJisrId: '',
     driverIdReceivedFromName: '',
-    userDriverName: '',
-    userDriverReceivedFromName: '',
     authorizationStartDate: '',
     authorizationEndDate: '',
     authorizationEndDateFrom: '',
@@ -49,16 +55,22 @@ export function Authorizations() {
     setPage(1);
   };
 
+  // تجميع أجزاء لوحة المركبة
+  const vehiclePlateName = [
+    filters.vehiclePlatePart1,
+    filters.vehiclePlatePart2,
+    filters.vehiclePlatePart3,
+    filters.vehiclePlateNumbers
+  ].filter(Boolean).join(' ');
+
   const { authorizations, meta, isLoading, error, refetch, page, setPage } = useAuthorizations({
     limit: 10,
     authorizationType: filters.authorizationType || undefined,
     authorizationStatus: filters.authorizationStatus || undefined,
-    vehiclePlateName: filters.vehiclePlateName || undefined,
+    vehiclePlateName: vehiclePlateName || undefined,
     driverName: filters.driverName || undefined,
     driverJisrId: filters.driverJisrId || undefined,
     driverIdReceivedFromName: filters.driverIdReceivedFromName || undefined,
-    userDriverName: filters.userDriverName || undefined,
-    userDriverReceivedFromName: filters.userDriverReceivedFromName || undefined,
     authorizationStartDate: filters.authorizationStartDate || undefined,
     authorizationEndDate: filters.authorizationEndDate || undefined,
     authorizationEndDateFrom: filters.authorizationEndDateFrom || undefined,
@@ -79,14 +91,28 @@ export function Authorizations() {
   const endDate = startDate && authorizationDays > 0 ? addDaysToDate(startDate, authorizationDays) : '';
 
   const handleCancelAuthorization = async (auth: AuthorizationDisplay) => {
-    if (!confirm(`هل تريد إلغاء تفويض المركبة "${auth.vehicle}"؟`)) return;
+    const confirmed = await confirm(
+      'تأكيد إلغاء التفويض',
+      `هل تريد إلغاء تفويض المركبة "${auth.vehicle}"؟\nهذا الإجراء لا يمكن التراجع عنه.`,
+      {
+        type: 'warning',
+        confirmText: 'تأكيد الإلغاء',
+        cancelText: 'تراجع',
+      }
+    );
+    
+    if (!confirmed) return;
+    
     setCancellingId(auth.id);
+    const loadingId = loading('جاري إلغاء التفويض...', `تفويض المركبة ${auth.vehicle}`);
+    
     try {
       await cancelAuthorization(auth.id);
       await refetch();
       setSelectedAuth(null);
+      showSuccess('تم إلغاء التفويض بنجاح', `تم إلغاء تفويض المركبة ${auth.vehicle}`);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'فشل إلغاء التفويض');
+      showError('فشل إلغاء التفويض', err instanceof Error ? err.message : 'حدث خطأ أثناء إلغاء التفويض');
     } finally {
       setCancellingId(null);
     }
@@ -97,12 +123,13 @@ export function Authorizations() {
     setFilters({
       authorizationType: '',
       authorizationStatus: '',
-      vehiclePlateName: '',
+      vehiclePlatePart1: '',
+      vehiclePlatePart2: '',
+      vehiclePlatePart3: '',
+      vehiclePlateNumbers: '',
       driverName: '',
       driverJisrId: '',
       driverIdReceivedFromName: '',
-      userDriverName: '',
-      userDriverReceivedFromName: '',
       authorizationStartDate: '',
       authorizationEndDate: '',
       authorizationEndDateFrom: '',
@@ -346,7 +373,10 @@ export function Authorizations() {
 
       {/* KPI Cards - Enhanced */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        <Card className="border-r-4 border-[#09b9b5] hover:shadow-xl transition-all duration-300 group cursor-pointer">
+        <Card 
+          className="border-r-4 border-[#09b9b5] hover:shadow-xl transition-all duration-300 group cursor-pointer"
+          onClick={() => info('إجمالي التفويضات', `يوجد حالياً ${stats.total} تفويض في النظام`)}
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs sm:text-sm text-gray-600 mb-1 flex items-center gap-1.5">
@@ -365,7 +395,10 @@ export function Authorizations() {
           </div>
         </Card>
 
-        <Card className="border-r-4 border-[#00a287] hover:shadow-xl transition-all duration-300 group cursor-pointer">
+        <Card 
+          className="border-r-4 border-[#00a287] hover:shadow-xl transition-all duration-300 group cursor-pointer"
+          onClick={() => showSuccess('التفويضات السارية', `${stats.active} تفويض ساري المفعول حالياً`)}
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs sm:text-sm text-gray-600 mb-1 flex items-center gap-1.5">
@@ -386,7 +419,10 @@ export function Authorizations() {
           </div>
         </Card>
 
-        <Card className="border-r-4 border-[#f57c00] hover:shadow-xl transition-all duration-300 group cursor-pointer">
+        <Card 
+          className="border-r-4 border-[#f57c00] hover:shadow-xl transition-all duration-300 group cursor-pointer"
+          onClick={() => warning('قريبة من الانتهاء', `${stats.expiringSoon} تفويض تحتاج إلى تجديد خلال 30 يوم`)}
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs sm:text-sm text-gray-600 mb-1 flex items-center gap-1.5">
@@ -405,7 +441,10 @@ export function Authorizations() {
           </div>
         </Card>
 
-        <Card className="border-r-4 border-[#d32f2f] hover:shadow-xl transition-all duration-300 group cursor-pointer">
+        <Card 
+          className="border-r-4 border-[#d32f2f] hover:shadow-xl transition-all duration-300 group cursor-pointer"
+          onClick={() => showError('التفويضات المنتهية', `${stats.expired} تفويض منتهي الصلاحية`)}
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs sm:text-sm text-gray-600 mb-1 flex items-center gap-1.5">
@@ -458,15 +497,42 @@ export function Authorizations() {
                 </select>
               </div>
 
-              <div>
+              <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-[#4d647c] mb-2">لوحة المركبة</label>
-                <input
-                  type="text"
-                  value={filters.vehiclePlateName}
-                  onChange={(e) => updateFilter('vehiclePlateName', e.target.value)}
-                  placeholder="مثال: ب ع ق 2589"
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={filters.vehiclePlatePart1}
+                    onChange={(e) => updateFilter('vehiclePlatePart1', e.target.value)}
+                    placeholder="حرف"
+                    maxLength={1}
+                    className="w-12 p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white text-center"
+                  />
+                  <input
+                    type="text"
+                    value={filters.vehiclePlatePart2}
+                    onChange={(e) => updateFilter('vehiclePlatePart2', e.target.value)}
+                    placeholder="حرف"
+                    maxLength={1}
+                    className="w-12 p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white text-center"
+                  />
+                  <input
+                    type="text"
+                    value={filters.vehiclePlatePart3}
+                    onChange={(e) => updateFilter('vehiclePlatePart3', e.target.value)}
+                    placeholder="حرف"
+                    maxLength={1}
+                    className="w-12 p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white text-center"
+                  />
+                  <input
+                    type="text"
+                    value={filters.vehiclePlateNumbers}
+                    onChange={(e) => updateFilter('vehiclePlateNumbers', e.target.value)}
+                    placeholder="2589"
+                    maxLength={4}
+                    className="flex-1 p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white text-center"
+                  />
+                </div>
               </div>
 
               <div>
@@ -502,27 +568,6 @@ export function Authorizations() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-[#4d647c] mb-2">اسم سائق المستخدم</label>
-                <input
-                  type="text"
-                  value={filters.userDriverName}
-                  onChange={(e) => updateFilter('userDriverName', e.target.value)}
-                  placeholder="بحث بالاسم"
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#4d647c] mb-2">اسم المسلم منه للمستخدم</label>
-                <input
-                  type="text"
-                  value={filters.userDriverReceivedFromName}
-                  onChange={(e) => updateFilter('userDriverReceivedFromName', e.target.value)}
-                  placeholder="بحث بالاسم"
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
-                />
-              </div>
 
               <div>
                 <label className="block text-sm font-medium text-[#4d647c] mb-2">تاريخ البداية</label>
@@ -631,7 +676,7 @@ export function Authorizations() {
             return (
               <Card 
                 key={auth.id}
-                className="group cursor-pointer hover:shadow-2xl transition-all duration-300 border-t-4 border-[#09b9b5] overflow-hidden"
+                className="group cursor-pointer hover:shadow-lg transition-all duration-300 border-t-4 border-[#09b9b5] overflow-hidden"
                 style={{ animationDelay: `${index * 50}ms` }}
                 onClick={() => setSelectedAuth(auth)}
               >
@@ -807,12 +852,13 @@ export function Authorizations() {
 
       {/* Authorization Details Modal */}
       {selectedAuth && (
+        <Portal>
         <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn" 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4 animate-fadeIn" 
           onClick={() => setSelectedAuth(null)}
         >
           <div 
-            className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-slideUp" 
+            className="bg-white rounded-2xl shadow-lg max-w-4xl w-full max-h-[85vh] overflow-y-auto animate-slideUp" 
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -926,16 +972,18 @@ export function Authorizations() {
             </div>
           </div>
         </div>
+      </Portal>
       )}
 
       {/* Add Authorization Modal (Multi-Step) */}
       {showModal && (
+        <Portal>
         <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn" 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4 animate-fadeIn" 
           onClick={() => setShowModal(false)}
         >
           <div 
-            className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto animate-slideUp" 
+            className="bg-white rounded-2xl shadow-lg max-w-5xl w-full max-h-[85vh] overflow-y-auto animate-slideUp" 
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -1269,6 +1317,7 @@ export function Authorizations() {
             </form>
           </div>
         </div>
+      </Portal>
       )}
 
       <style jsx global>{`
@@ -1317,6 +1366,9 @@ export function Authorizations() {
           animation: slideUp 0.3s ease-out forwards;
         }
       `}</style>
+      
+      {/* AlertDialog Component */}
+      <DialogComponent />
     </div>
   );
 }

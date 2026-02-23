@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { IBM_Plex_Sans_Arabic } from 'next/font/google';
 import './globals.css';
+import { NotificationProvider } from '@/components/ui/Notifications';
 
 // استخدام خط IBM Plex Sans Arabic كبديل احترافي
 // يمكن استبداله بـ ExpoArabic المحلي عند توفره في /public/fonts/
@@ -24,7 +25,9 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" className={arabicFont.variable}>
       <body className={`${arabicFont.className} antialiased`}>
-        {children}
+        <NotificationProvider>
+          {children}
+        </NotificationProvider>
       </body>
     </html>
   );

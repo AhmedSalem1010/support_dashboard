@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
+import { Portal } from '@/components/ui/Portal';
 import { USER_STATUS_LABELS, USER_ROLE_LABELS, statusToArabic } from '@/lib/enums';
 
 export function Users() {
@@ -152,8 +153,9 @@ export function Users() {
       </Card>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowModal(false)}>
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <Portal>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-gray-200">
               <h2 className="text-2xl font-bold text-gray-900">إضافة مستخدم جديد</h2>
             </div>
@@ -185,6 +187,7 @@ export function Users() {
             </form>
           </div>
         </div>
+      </Portal>
       )}
     </div>
   );

@@ -9,6 +9,7 @@ import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { useVehicles } from '@/hooks/useVehicles';
 import type { VehicleDisplay } from '@/lib/vehicles/mappers';
+import { Portal } from '@/components/ui/Portal';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'الكل' },
@@ -532,7 +533,7 @@ export function Vehicles() {
               {displayedVehicles.map((vehicle, index) => (
                 <Card 
                   key={vehicle.id}
-                  className="group cursor-pointer hover:shadow-2xl transition-all duration-300 border-t-4 border-[#09b9b5] overflow-hidden"
+                  className="group cursor-pointer hover:shadow-lg transition-all duration-300 border-t-4 border-[#09b9b5] overflow-hidden"
                   style={{ animationDelay: `${index * 50}ms` }}
                   onClick={() => setSelectedVehicle(vehicle)}
                 >
@@ -695,12 +696,13 @@ export function Vehicles() {
 
       {/* Vehicle Details Modal */}
       {selectedVehicle && (
+        <Portal>
         <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fadeIn" 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4 animate-fadeIn" 
           onClick={() => setSelectedVehicle(null)}
         >
           <div 
-            className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-slideUp" 
+            className="bg-white rounded-2xl shadow-lg max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-slideUp" 
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header - متناسق مع App Bar */}
@@ -830,16 +832,18 @@ export function Vehicles() {
             </div>
           </div>
         </div>
+      </Portal>
       )}
 
       {/* Add Vehicle Modal (Enhanced) */}
       {showModal && (
+        <Portal>
         <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn" 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4 animate-fadeIn" 
           onClick={() => setShowModal(false)}
         >
           <div 
-            className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-slideUp" 
+            className="bg-white rounded-2xl shadow-lg max-w-4xl w-full max-h-[85vh] overflow-y-auto animate-slideUp" 
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -1191,6 +1195,7 @@ export function Vehicles() {
             </form>
           </div>
         </div>
+      </Portal>
       )}
 
       <style jsx global>{`

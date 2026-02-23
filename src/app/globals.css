@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import notification animations */
+@import './notifications.css';
+
 /* CleanLife Design System - CSS Variables */
 :root {
   /* الألوان الأساسية */
