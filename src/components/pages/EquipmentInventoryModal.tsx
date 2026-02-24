@@ -1,7 +1,14 @@
 'use client';
 
-import { useState, useRef, type FormEvent, type ChangeEvent } from "react";
+import { useState, useRef, useEffect, type FormEvent } from "react";
 import { useVehiclesList } from "@/hooks/useVehiclesList";
+import { useLastAuthorizationData } from "@/hooks/useLastAuthorizationData";
+import { useVehicleEquipmentInfo } from "@/hooks/useVehicleEquipmentInfo";
+import { createVehicleEquipmentInventory, getVehicleInfoRequestInfo } from "@/lib/api/equipment";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
+import { useNotificationsContext } from "@/components/ui/Notifications";
+import type { CreateVehicleEquipmentInventoryItemDto, CreateVehicleEquipmentInventoryDto } from "@/types/equipment";
+import { VehicleEquipmentInfoDialog } from "@/components/ui/VehicleEquipmentInfoDialog";
 import { Portal } from "@/components/ui/Portal";
 
 // --- Types ---
@@ -11,6 +18,27 @@ interface EquipmentInventoryModalProps {
 }
 
 type EquipmentKey = "blicher" | "bakium" | "ladderBig" | "ladderSmall" | "leMay" | "leBakium" | "leShoft" | "noselShaft" | "noselMay" | "noselKabir";
+
+/** ربط أسماء المعدات من API (vehicle-info) بمفاتيح الجرد - مع وبدون "ال" */
+const VEHICLE_INFO_ITEM_NAME_TO_KEY: Record<string, EquipmentKey> = {
+  "بليشر": "blicher", "البليشر": "blicher",
+  "باكيوم": "bakium", "الباكيوم": "bakium",
+  "سلم صغير": "ladderSmall", "السلم الصغير": "ladderSmall",
+  "سلم كبير": "ladderBig", "السلم الكبير": "ladderBig",
+  "لي ماء": "leMay", "لي الماء": "leMay",
+  "لي باكيوم": "leBakium", "لي الباكيوم": "leBakium",
+  "لي شفط": "leShoft", "لي الشفط": "leShoft",
+  "نوسل شفط": "noselShaft",
+  "نوسل ماء": "noselMay",
+  "نوسل كبير": "noselKabir",
+};
+
+function getEquipmentKeyFromItemName(itemName: string): EquipmentKey | null {
+  const trimmed = itemName.trim();
+  if (VEHICLE_INFO_ITEM_NAME_TO_KEY[trimmed]) return VEHICLE_INFO_ITEM_NAME_TO_KEY[trimmed];
+  const withoutAl = trimmed.replace(/^ال/, "");
+  return VEHICLE_INFO_ITEM_NAME_TO_KEY[withoutAl] ?? null;
+}
 
 // --- Icons ---
 const CheckIcon = () => (
@@ -27,6 +55,9 @@ const SaveIcon = () => (
 );
 const UserIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+);
+const CarIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18"><path d="M1 3h15l3 5h4v8h-2M1 16V8l2-5"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/><path d="M8 16h8"/></svg>
 );
 const RecordIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><circle cx="12" cy="12" r="8"/></svg>
@@ -153,7 +184,7 @@ function VideoRecorder({ label, color, onRecorded }: { label: string; color: str
 // --- Main Component ---
 export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentInventoryModalProps) {
   const [selectedVehicle, setSelectedVehicle] = useState("");
-  const [vehicleInfo, setVehicleInfo] = useState<{ id: string; plateNumber: string; manufacturer: string; model: string; year: number; driver: { name: string; phone: string; team: string } } | null>(null);
+  const [vehicleAuthorizationId, setVehicleAuthorizationId] = useState<string | null>(null);
   const [supervisor, setSupervisor] = useState("");
   const [notes, setNotes] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -164,8 +195,26 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
   });
   const [vehicleVideoFile, setVehicleVideoFile] = useState<File | null>(null);
   const [equipmentVideoFile, setEquipmentVideoFile] = useState<File | null>(null);
+  const [showPayloadDialog, setShowPayloadDialog] = useState(false);
+  const [payloadToSend, setPayloadToSend] = useState<CreateVehicleEquipmentInventoryDto | null>(null);
 
   const { vehicles, vehicleOptions } = useVehiclesList();
+  const selectedPlateName = vehicleOptions.find((o) => o.value === selectedVehicle)?.plateName ?? null;
+  const lastAuth = useLastAuthorizationData(selectedPlateName);
+  const { data: vehicleEquipmentData, isLoading: vehicleEquipmentLoading, error: vehicleEquipmentError } = useVehicleEquipmentInfo(selectedPlateName);
+  const selectedVehicleData = selectedVehicle ? vehicles.find((v) => v.id === selectedVehicle) : null;
+  const [showVehicleInfoDialog, setShowVehicleInfoDialog] = useState(false);
+  const { success: showSuccess, error: showError } = useNotificationsContext();
+
+  /** معرف المشرف من بيانات آخر تفويض (مطلوب للإرسال) */
+  const supervisorId =
+    lastAuth.data?.supervisorId ??
+    (lastAuth.data?.supervisor && typeof lastAuth.data.supervisor === "object" && "id" in lastAuth.data.supervisor
+      ? (lastAuth.data.supervisor as { id: string }).id
+      : null);
+
+  /** عدد الفريق من نفس اند بوينت بيانات المركبة والسائق (last-authorization-data) */
+  const teamWorkerCount = lastAuth.data?.teamWorkerCount ?? lastAuth.data?.workersCount ?? 0;
 
   const equipmentLabels: Record<EquipmentKey, string> = {
     blicher: "البليشر", bakium: "الباكيوم", ladderBig: "السلم الكبير",
@@ -176,17 +225,102 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
   const incrementItem = (key: EquipmentKey) => setEquipment(p => ({ ...p, [key]: p[key] + 1 }));
   const decrementItem = (key: EquipmentKey) => setEquipment(p => ({ ...p, [key]: Math.max(0, p[key] - 1) }));
 
+  useEffect(() => {
+    if (!selectedPlateName) {
+      setEquipment({
+        blicher: 0, bakium: 0, ladderBig: 0, ladderSmall: 0, leMay: 0, leBakium: 0,
+        leShoft: 0, noselShaft: 0, noselMay: 0, noselKabir: 0,
+      });
+      return;
+    }
+    if (!vehicleEquipmentData || vehicleEquipmentData.length === 0) return;
+    const defaults: Record<EquipmentKey, number> = {
+      blicher: 0, bakium: 0, ladderBig: 0, ladderSmall: 0, leMay: 0, leBakium: 0,
+      leShoft: 0, noselShaft: 0, noselMay: 0, noselKabir: 0,
+    };
+    vehicleEquipmentData.forEach((item) => {
+      const key = getEquipmentKeyFromItemName(item.itemName);
+      if (key != null && typeof item.itemCount === "number" && item.itemCount >= 0) {
+        defaults[key] = item.itemCount;
+      }
+    });
+    setEquipment(defaults);
+  }, [vehicleEquipmentData, selectedPlateName]);
+
+  useEffect(() => {
+    if (!selectedPlateName) setShowVehicleInfoDialog(false);
+    else setShowVehicleInfoDialog(true);
+  }, [selectedPlateName]);
+
+  /** vehicleAuthorizationId من نفس اند بوينت بيانات المركبة والسائق (last-authorization-data) */
+  useEffect(() => {
+    if (lastAuth.data?.id) setVehicleAuthorizationId(lastAuth.data.id);
+    else setVehicleAuthorizationId(null);
+  }, [lastAuth.data?.id, selectedPlateName]);
+
+  useEffect(() => {
+    const name = lastAuth.data?.supervisor && typeof lastAuth.data.supervisor === "object" && "name" in lastAuth.data.supervisor
+      ? (lastAuth.data.supervisor as { name?: string }).name
+      : "";
+    setSupervisor((prev) => (name ? name : prev));
+  }, [lastAuth.data?.supervisor, selectedPlateName]);
+
   const handleVehicleSelect = (id: string) => {
     setSelectedVehicle(id);
-    if (!id) { setVehicleInfo(null); return; }
-    const v = vehicles.find((x) => x.id === id);
-    setVehicleInfo(v ? { id: v.id, plateNumber: v.plateName || v.plateNumber, manufacturer: v.manufacturer, model: v.model, year: v.year, driver: { name: "—", phone: "—", team: "—" } } : null);
+    if (!id) setVehicleAuthorizationId(null);
+  };
+
+  const buildPayload = (): CreateVehicleEquipmentInventoryDto => {
+    const items: CreateVehicleEquipmentInventoryItemDto[] = (Object.entries(equipment) as [EquipmentKey, number][]).map(
+      ([key, itemCount]) => ({
+        itemName: equipmentLabels[key],
+        itemCount,
+        itemStatus: "usable",
+        itemInventoryStatus: "ok",
+      })
+    );
+    return {
+      vehicleAuthorizationId: vehicleAuthorizationId ?? "",
+      equipmentInventoryType: "inventory",
+      supervisorId: supervisorId ?? "",
+      items,
+      equipmentInventoryNote: notes || undefined,
+      equipmentInventoryDescription: supervisor ? `المشرف: ${supervisor}` : undefined,
+      equipmentInventoryStatus: "check",
+      teamWorkerCount,
+    };
   };
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setPayloadToSend(buildPayload());
+    setShowPayloadDialog(true);
+  };
+
+  const handleConfirmSend = async () => {
+    if (!payloadToSend) return;
     setSubmitted(true);
-    setTimeout(() => { setSubmitted(false); onClose(); }, 2000);
+    try {
+      const res = await createVehicleEquipmentInventory(payloadToSend);
+      setShowPayloadDialog(false);
+      setPayloadToSend(null);
+      if (res.success && res.data) {
+        showSuccess("تم حفظ الجرد بنجاح", res.message);
+        setTimeout(() => {
+          setSubmitted(false);
+          onClose();
+        }, 1500);
+      } else {
+        setSubmitted(false);
+        const msg = (res as { message?: string }).message ?? (res.error as Error)?.message ?? "حدث خطأ";
+        showError("فشل حفظ الجرد", msg);
+      }
+    } catch (err) {
+      setSubmitted(false);
+      setShowPayloadDialog(false);
+      setPayloadToSend(null);
+      showError("فشل حفظ الجرد", err instanceof Error ? err.message : "حدث خطأ أثناء الإرسال");
+    }
   };
 
   if (!isOpen) return null;
@@ -225,46 +359,53 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
         <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px", fontFamily: "'IBM Plex Sans Arabic', 'Segoe UI', sans-serif", direction: "rtl" }}>
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
-            {/* Vehicle Info */}
-            <div style={{ background: "#f9fafb", borderRadius: 16, padding: 22, border: "1px solid #e5e7eb" }}>
+            {/* اختيار المركبة */}
+            <div style={{ background: "linear-gradient(180deg, #f0fdfa 0%, #f9fafb 100%)", borderRadius: 16, padding: 22, border: "1.5px solid #99f6e4", boxShadow: "0 2px 12px rgba(20, 184, 166, 0.08)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
                 <div style={{ width: 8, height: 28, background: "linear-gradient(180deg, #14b8a6, #06b6d4)", borderRadius: 99 }} />
-                <h3 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>معلومات المركبة والسائق</h3>
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>المركبة</h3>
+                  <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>ابحث برقم اللوحة أو الموديل ثم اختر المركبة</p>
+                </div>
               </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, color: "#1f2937", display: "block", marginBottom: 8 }}>اختر المركبة <span style={{ color: "#ef4444" }}>*</span></label>
-                <select value={selectedVehicle} onChange={e => handleVehicleSelect(e.target.value)} required
-                  style={{ width: "100%", padding: "10px 14px", border: "1.5px solid #e5e7eb", borderRadius: 10, fontFamily: "inherit", fontSize: 14, color: "#1f2937", background: "white", cursor: "pointer", outline: "none" }}>
-                  <option value="">— اختر المركبة —</option>
-                  {vehicleOptions.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
-                </select>
-              </div>
-              {vehicleInfo && (
-                <div style={{ background: "linear-gradient(135deg, #f0fdfa 0%, #ecfdf5 100%)", borderRadius: 12, padding: 18, border: "1.5px solid #99f6e4" }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-                    <div style={{ background: "white", padding: 12, borderRadius: 10, border: "1px solid #ccfbf1" }}>
-                      <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, marginBottom: 4 }}>رقم اللوحة</div>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: "#0f766e" }}>{vehicleInfo.plateNumber}</div>
+              <SearchableSelect
+                label="اختر المركبة"
+                options={vehicleOptions}
+                value={selectedVehicle}
+                onChange={handleVehicleSelect}
+                placeholder="ابحث أو اختر المركبة..."
+                required
+              />
+
+              {selectedVehicle && (
+                <div style={{ marginTop: 16 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 12 }}>بيانات المركبة والسائق</p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div style={{ background: "#f3f4f6", borderRadius: 12, padding: 14, border: "1px solid #e5e7eb" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                        <CarIcon />
+                        <span style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>المركبة</span>
+                      </div>
+                      {selectedVehicleData ? (
+                        <>
+                          <p style={{ fontSize: 14, fontWeight: 600, color: "#1f2937", margin: "0 0 4px" }}>{selectedVehicleData.plateName || selectedVehicleData.plateNumber}</p>
+                          <p style={{ fontSize: 13, color: "#6b7280", margin: "0 0 4px" }}>{selectedVehicleData.manufacturer} {selectedVehicleData.model} - {selectedVehicleData.year}</p>
+                          <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>{selectedVehicleData.vehicleType || "—"}</p>
+                        </>
+                      ) : (
+                        <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>—</p>
+                      )}
                     </div>
-                    <div style={{ background: "white", padding: 12, borderRadius: 10, border: "1px solid #ccfbf1" }}>
-                      <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, marginBottom: 4 }}>سنة الصنع</div>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: "#0f766e" }}>{vehicleInfo.year}</div>
-                    </div>
-                    <div style={{ background: "white", padding: 12, borderRadius: 10, border: "1px solid #ccfbf1" }}>
-                      <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, marginBottom: 4 }}>الصانع</div>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: "#0f766e" }}>{vehicleInfo.manufacturer}</div>
-                    </div>
-                    <div style={{ background: "white", padding: 12, borderRadius: 10, border: "1px solid #ccfbf1" }}>
-                      <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, marginBottom: 4 }}>الموديل</div>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: "#0f766e" }}>{vehicleInfo.model}</div>
-                    </div>
-                  </div>
-                  <div style={{ background: "white", padding: 14, borderRadius: 10, border: "1px solid #ccfbf1" }}>
-                    <h4 style={{ fontSize: 13, fontWeight: 700, color: "#0f766e", margin: "0 0 10px", display: "flex", alignItems: "center", gap: 8 }}><UserIcon /> معلومات السائق</h4>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-                      <div><div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, marginBottom: 3 }}>الاسم</div><div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>{vehicleInfo.driver.name}</div></div>
-                      <div><div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, marginBottom: 3 }}>الهاتف</div><div style={{ fontSize: 14, fontWeight: 700, color: "#111827", direction: "ltr" }}>{vehicleInfo.driver.phone}</div></div>
-                      <div><div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, marginBottom: 3 }}>الفريق</div><div style={{ fontSize: 13, fontWeight: 600, color: "#0f766e", background: "#ecfdf5", padding: "6px 10px", borderRadius: 6 }}>{vehicleInfo.driver.team}</div></div>
+                    <div style={{ background: "#f3f4f6", borderRadius: 12, padding: 14, border: "1px solid #e5e7eb" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                        <UserIcon />
+                        <span style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>السائق</span>
+                      </div>
+                      {lastAuth.isLoading ? (
+                        <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>جاري التحميل...</p>
+                      ) : (
+                        <p style={{ fontSize: 14, fontWeight: 600, color: "#1f2937", margin: 0 }}>{lastAuth.data?.driver?.name ?? "—"}</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -273,9 +414,17 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
 
             {/* Equipment Inventory - Card Style */}
             <div style={{ background: "white", borderRadius: 16, padding: 22, border: "1px solid #e5e7eb" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-                <InventoryIcon />
-                <h3 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>جرد العهدة</h3>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <InventoryIcon />
+                  <h3 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>جرد العهدة</h3>
+                </div>
+                {selectedPlateName && vehicleEquipmentLoading && (
+                  <span style={{ fontSize: 12, color: "#0d9488", fontWeight: 600 }}>جاري تحميل المعدات...</span>
+                )}
+                {selectedPlateName && vehicleEquipmentError && (
+                  <span style={{ fontSize: 12, color: "#dc2626", fontWeight: 600 }}>{vehicleEquipmentError}</span>
+                )}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
                 {(Object.entries(equipment) as [EquipmentKey, number][]).map(([key, count]) => {
@@ -378,6 +527,47 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
         )}
       </div>
     </div>
+
+    {/* ديلوج عرض البيانات المرسلة */}
+    {showPayloadDialog && payloadToSend && (
+      <div style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(0,0,0,0.5)" }} onClick={() => setShowPayloadDialog(false)}>
+        <div
+          style={{ background: "white", borderRadius: 16, width: "100%", maxWidth: 560, maxHeight: "85vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 25px 50px rgba(0,0,0,0.25)" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#111827" }}>البيانات المرسلة للاند بوينت</h3>
+            <button type="button" onClick={() => { setShowPayloadDialog(false); setPayloadToSend(null); }} style={{ padding: 6, border: "none", background: "#f3f4f6", borderRadius: 8, cursor: "pointer" }}>
+              <XIcon />
+            </button>
+          </div>
+          <pre style={{ flex: 1, overflow: "auto", margin: 0, padding: 20, fontSize: 12, fontFamily: "ui-monospace, monospace", background: "#f8fafc", color: "#1e293b", direction: "ltr", textAlign: "left" }}>
+            {JSON.stringify(payloadToSend, null, 2)}
+          </pre>
+          <div style={{ padding: 16, borderTop: "1px solid #e5e7eb", display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <button type="button" onClick={() => { setShowPayloadDialog(false); setPayloadToSend(null); }}
+              style={{ padding: "10px 20px", borderRadius: 10, border: "1.5px solid #e5e7eb", fontSize: 14, fontWeight: 700, color: "#6b7280", background: "white", cursor: "pointer" }}>
+              إلغاء
+            </button>
+            <button type="button" onClick={handleConfirmSend} disabled={submitted}
+              style={{ padding: "10px 24px", borderRadius: 10, border: "none", fontSize: 14, fontWeight: 700, color: "white", background: submitted ? "#9ca3af" : "#0d9488", cursor: submitted ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+              <SaveIcon />
+              {submitted ? "جاري الإرسال..." : "إرسال"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    <VehicleEquipmentInfoDialog
+      isOpen={showVehicleInfoDialog}
+      onClose={() => setShowVehicleInfoDialog(false)}
+      vehiclePlateName={selectedPlateName}
+      requestInfo={selectedPlateName ? getVehicleInfoRequestInfo(selectedPlateName) : null}
+      data={vehicleEquipmentData}
+      isLoading={vehicleEquipmentLoading}
+      error={vehicleEquipmentError}
+    />
     </Portal>
   );
 }

@@ -1,15 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, FileText, User, Car, Calendar, Package, Search, Filter, Download, X, Eye, Edit, XCircle, CheckCircle, AlertCircle, Clock, TrendingUp, Users, Shield, RefreshCw, Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { useAuthorizations } from '@/hooks/useAuthorizations';
 import { cancelAuthorization } from '@/lib/api/authorizations';
 import { useVehiclesList } from '@/hooks/useVehiclesList';
+import { useLastAuthorizationData } from '@/hooks/useLastAuthorizationData';
+import { useVehicleEquipmentInfo } from '@/hooks/useVehicleEquipmentInfo';
+import { getVehicleInfoRequestInfo } from '@/lib/api/equipment';
+import { VehicleDriverSummary } from '@/components/ui/VehicleDriverSummary';
+import { VehicleEquipmentInfoDialog } from '@/components/ui/VehicleEquipmentInfoDialog';
 import { AUTHORIZATION_STATUS_LABELS, AUTHORIZATION_TYPE_LABELS, statusToArabic } from '@/lib/enums';
 import type { AuthorizationDisplay } from '@/lib/authorizations/mappers';
 import { useNotificationsContext } from '@/components/ui/Notifications';
@@ -30,8 +36,28 @@ function getDaysRemaining(endDate: string): number {
   return diff;
 }
 
+const AUTHORIZATION_EQUIPMENT_LABELS = [
+  'البليشر', 'الباكيوم', 'السلم الكبير', 'السلم الصغير',
+  'لي الماء', 'لي الباكيوم', 'نوسل ماء', 'نوسل شفط', 'نوسل كبير',
+] as const;
+
+const API_ITEM_NAME_TO_AUTH_LABEL: Record<string, string> = {
+  بليشر: 'البليشر', البليشر: 'البليشر',
+  باكيوم: 'الباكيوم', الباكيوم: 'الباكيوم',
+  'سلم كبير': 'السلم الكبير', 'السلم الكبير': 'السلم الكبير',
+  'سلم صغير': 'السلم الصغير', 'السلم الصغير': 'السلم الصغير',
+  'لي ماء': 'لي الماء', 'لي الماء': 'لي الماء',
+  'لي باكيوم': 'لي الباكيوم', 'لي الباكيوم': 'لي الباكيوم',
+  'نوسل ماء': 'نوسل ماء', 'نوسل شفط': 'نوسل شفط', 'نوسل كبير': 'نوسل كبير',
+};
+
 export function Authorizations() {
   const { vehicleOptions } = useVehiclesList();
+  const [formVehicleId, setFormVehicleId] = useState<string>('');
+  const selectedPlateName = vehicleOptions.find((o) => o.value === formVehicleId)?.plateName ?? null;
+  const lastAuth = useLastAuthorizationData(selectedPlateName);
+  const vehicleEquipment = useVehicleEquipmentInfo(selectedPlateName);
+  const [showVehicleInfoDialog, setShowVehicleInfoDialog] = useState(false);
   const { success: showSuccess, error: showError, warning, info, loading } = useNotificationsContext();
   const { confirm, DialogComponent } = useAlertDialog();
   const [filters, setFilters] = useState({
@@ -79,6 +105,11 @@ export function Authorizations() {
 
   const [showModal, setShowModal] = useState(false);
   const [selectedAuth, setSelectedAuth] = useState<AuthorizationDisplay | null>(null);
+
+  useEffect(() => {
+    if (!selectedPlateName) setShowVehicleInfoDialog(false);
+    else setShowVehicleInfoDialog(true);
+  }, [selectedPlateName]);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
@@ -87,6 +118,23 @@ export function Authorizations() {
   const [workersCount, setWorkersCount] = useState<string>('one');
   const [authorizationDays, setAuthorizationDays] = useState<number>(0);
   const [startDate, setStartDate] = useState<string>('');
+
+  const [authorizationEquipment, setAuthorizationEquipment] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!vehicleEquipment.data || vehicleEquipment.data.length === 0) {
+      if (!selectedPlateName) setAuthorizationEquipment({});
+      return;
+    }
+    const next: Record<string, number> = {};
+    AUTHORIZATION_EQUIPMENT_LABELS.forEach((label) => { next[label] = 0; });
+    vehicleEquipment.data.forEach((item) => {
+      const trimmed = item.itemName.trim();
+      const label = API_ITEM_NAME_TO_AUTH_LABEL[trimmed] ?? API_ITEM_NAME_TO_AUTH_LABEL[trimmed.replace(/^ال/, '')];
+      if (label != null && typeof item.itemCount === 'number' && item.itemCount >= 0) next[label] = item.itemCount;
+    });
+    setAuthorizationEquipment(next);
+  }, [vehicleEquipment.data, selectedPlateName]);
 
   const endDate = startDate && authorizationDays > 0 ? addDaysToDate(startDate, authorizationDays) : '';
 
@@ -1078,16 +1126,32 @@ export function Authorizations() {
                       </select>
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        المركبة<span className="text-red-500 mr-1">*</span>
-                      </label>
-                      <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]">
-                        <option value="">اختر المركبة</option>
-                        {vehicleOptions.map((v) => (
-                          <option key={v.value} value={v.value}>{v.label}</option>
-                        ))}
-                      </select>
+                    <div className="md:col-span-2">
+                      <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50/80 to-white p-4 shadow-sm">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="p-2 bg-[#09b9b5]/10 rounded-lg">
+                            <Car className="w-4 h-4 text-[#09b9b5]" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-gray-800">المركبة</h4>
+                            <p className="text-xs text-gray-500">ابحث برقم اللوحة أو الموديل ثم اختر</p>
+                          </div>
+                        </div>
+                        <SearchableSelect
+                          label=""
+                          options={vehicleOptions}
+                          value={formVehicleId}
+                          onChange={setFormVehicleId}
+                          placeholder="ابحث أو اختر المركبة..."
+                          required
+                          className="mb-3"
+                        />
+                        <VehicleDriverSummary
+                          data={lastAuth.data}
+                          isLoading={lastAuth.isLoading}
+                          error={lastAuth.error}
+                        />
+                      </div>
                     </div>
 
                     <div>
@@ -1208,10 +1272,7 @@ export function Authorizations() {
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {[
-                      'البليشر', 'الباكيوم', 'السلم الكبير', 'السلم الصغير',
-                      'لي الماء', 'لي الباكيوم', 'نوسل ماء', 'نوسل شفط', 'نوسل كبير'
-                    ].map((item, i) => (
+                    {AUTHORIZATION_EQUIPMENT_LABELS.map((item, i) => (
                       <div key={i} className="p-4 bg-gradient-to-br from-gray-50 to-white rounded-xl border-2 border-gray-200 hover:border-[#09b9b5] transition-all group">
                         <div className="flex items-center gap-3">
                           <div className="p-2.5 bg-[#09b9b5]/10 rounded-lg group-hover:bg-[#09b9b5]/20 transition-colors">
@@ -1219,10 +1280,11 @@ export function Authorizations() {
                           </div>
                           <div className="flex-1">
                             <label className="text-sm font-medium text-gray-700 mb-1 block">{item}</label>
-                            <input 
-                              type="number" 
-                              min="0" 
-                              defaultValue="0" 
+                            <input
+                              type="number"
+                              min={0}
+                              value={authorizationEquipment[item] ?? 0}
+                              onChange={(e) => setAuthorizationEquipment((prev) => ({ ...prev, [item]: Math.max(0, Number(e.target.value) || 0) }))}
                               className="w-full text-lg font-bold border-0 p-0 focus:ring-0 text-gray-900"
                             />
                           </div>
@@ -1369,6 +1431,16 @@ export function Authorizations() {
       
       {/* AlertDialog Component */}
       <DialogComponent />
+
+      <VehicleEquipmentInfoDialog
+        isOpen={showVehicleInfoDialog}
+        onClose={() => setShowVehicleInfoDialog(false)}
+        vehiclePlateName={selectedPlateName}
+        requestInfo={selectedPlateName ? getVehicleInfoRequestInfo(selectedPlateName) : null}
+        data={vehicleEquipment.data}
+        isLoading={vehicleEquipment.isLoading}
+        error={vehicleEquipment.error}
+      />
     </div>
   );
 }

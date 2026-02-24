@@ -3,15 +3,26 @@
  */
 
 export type ItemStatus = 'MATCHED' | 'EXTRA' | 'MISSING';
+/** حالة صنف الجرد كما يرجعها الباكند في items[].itemInventoryStatus */
+export type ItemInventoryStatusApi = 'extra' | 'ok' | 'missing';
 export type ItemInventoryStatus = 'AVAILABLE' | 'NOT_AVAILABLE';
-export type EquipmentInventoryStatus = 'check' | 'pending' | 'completed';
-export type EquipmentInventoryType = 'authorization' | 'return' | 'inspection';
+/** يطابق enum EquipmentInventoryStatus في الباكند */
+export type EquipmentInventoryStatus = 'check' | 'not_check' | 'accepted' | 'rejected';
+/** يطابق enum EquipmentInventoryType في الباكند */
+export type EquipmentInventoryType =
+  | 'inventory'
+  | 'home_check'
+  | 'weekly_check'
+  | 'monthly_check'
+  | 'yearly_check'
+  | 'authorization';
 
 export interface VehicleEquipmentInventoryItem {
   itemName: string;
   itemCount: number;
-  itemStatus: ItemStatus;
-  itemInventoryStatus: ItemInventoryStatus;
+  itemStatus: string;
+  /** حالة الصنف في الجرد: زائد / مطابق / ناقص (قد لا يكون موجوداً في بعض الأصناف) */
+  itemInventoryStatus?: ItemInventoryStatusApi;
 }
 
 export interface User {
@@ -100,4 +111,79 @@ export interface EquipmentInventoryFetchParams {
   vehicleAuthorizationId?: string;
   supervisorId?: string;
   vehiclePlateName?: string;
+  vehicleSerialNumber?: string;
+  driverName?: string;
+  supervisorName?: string;
+}
+
+/** عنصر من استجابة vehicle-info (معلومات معدات المركبة حسب اللوحة) */
+export interface VehicleInfoItem {
+  itemName: string;
+  itemCount: number;
+  itemStatus: string;
+}
+
+/** معلومات الريكوست المرسل (للعرض في الحوار) */
+export interface VehicleInfoRequestInfo {
+  method: string;
+  url: string;
+  headers?: Record<string, string>;
+}
+
+/** عنصر حالة الفحص للمعدة (مرسل لـ check-equipment-inventory-status) */
+export interface EquipmentInventoryCheckStatusItem {
+  itemName: string;
+  itemStatus: string;
+}
+
+/** جسم طلب POST check-equipment-inventory-status (أسماء الحقول كما في الباكند) */
+export interface CheckEquipmentInventoryStatusDto {
+  vehiclePlateName?: string;
+  vhecleAuthorizationId?: string;
+  equipmentInvetoryCheckStatus: EquipmentInventoryCheckStatusItem[];
+  equipmentInventoryType?: string;
+  equipmentInventoryDescription?: string;
+  equipmentInventoryNote?: string;
+  equipmentInventoryImageId?: string;
+  equipmentInventoryVideoId?: string;
+}
+
+/** استجابة check-equipment-inventory-status */
+export interface CheckEquipmentInventoryStatusResponse {
+  data: VehicleEquipmentInventory | null;
+  error: unknown;
+  success: boolean;
+  message: string;
+  status: number;
+}
+
+/** عنصر صنف في طلب إنشاء جرد العهدة (يطابق VehicleEquipmentInventoryItemDto) */
+export interface CreateVehicleEquipmentInventoryItemDto {
+  itemName: string;
+  itemCount: number;
+  itemStatus: string;
+  itemInventoryStatus?: string;
+}
+
+/** جسم طلب إنشاء جرد العهدة (يطابق CreateVehicleEquipmentInventoryDto) */
+export interface CreateVehicleEquipmentInventoryDto {
+  vehicleAuthorizationId: string;
+  equipmentInventoryType: EquipmentInventoryType;
+  supervisorId: string;
+  items?: CreateVehicleEquipmentInventoryItemDto[];
+  equipmentInventoryNote?: string;
+  equipmentInventoryStatus?: string;
+  equipmentInventoryImageId?: string;
+  equipmentInventoryVideoId?: string;
+  equipmentInventoryDescription?: string;
+  teamWorkerCount?: number;
+}
+
+/** استجابة إنشاء جرد العهدة */
+export interface CreateVehicleEquipmentInventoryResponse {
+  data: VehicleEquipmentInventory | null;
+  error: unknown;
+  success: boolean;
+  message: string;
+  status: number;
 }

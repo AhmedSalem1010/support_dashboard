@@ -9,6 +9,10 @@ export interface VehicleDisplay {
   id: string;
   plateNumber: string;
   plateName: string;
+  /** أجزاء اللوحة لتركيب الصيغة: ر أ ص 8299 */
+  plateText1?: string;
+  plateText2?: string;
+  plateText3?: string;
   serialNumber: string;
   vin: string;
   manufacturer: string;
@@ -31,10 +35,20 @@ export interface VehicleDisplay {
 }
 
 export function mapVehicleFromApi(vehicle: VehicleApiResponse): VehicleDisplay {
+  const plateText1 = vehicle.plateText1?.trim() ?? '';
+  const plateText2 = vehicle.plateText2?.trim() ?? '';
+  const plateText3 = vehicle.plateText3?.trim() ?? '';
+  const numberPart = vehicle.plateNumber?.trim() ?? '';
+  const parts = [plateText1, plateText2, plateText3].filter(Boolean);
+  if (numberPart) parts.push(numberPart);
+  const builtPlateName = parts.join(' ');
   return {
     id: vehicle.id,
     plateNumber: vehicle.plateNumber,
-    plateName: vehicle.plateName,
+    plateName: builtPlateName || vehicle.plateName,
+    plateText1: plateText1 || undefined,
+    plateText2: plateText2 || undefined,
+    plateText3: plateText3 || undefined,
     serialNumber: vehicle.serialNumber,
     vin: vehicle.chassisNumber,
     chassisNumber: vehicle.chassisNumber,

@@ -102,6 +102,31 @@ export const ISTIMARAH_STATUS_LABELS: Record<string, string> = {
   not_exist: 'لا يوجد',
 };
 
+/** نوع جرد العهدة (يطابق EquipmentInventoryType في الباكند) */
+export const EQUIPMENT_INVENTORY_TYPE_LABELS: Record<string, string> = {
+  inventory: 'جرد',
+  home_check: 'فحص السكن',
+  weekly_check: 'فحص أسبوعي',
+  monthly_check: 'فحص شهري',
+  yearly_check: 'فحص سنوي',
+  authorization: 'تفويض',
+};
+
+/** حالة جرد العهدة (يطابق EquipmentInventoryStatus في الباكند) */
+export const EQUIPMENT_INVENTORY_STATUS_LABELS: Record<string, string> = {
+  check: 'تم الفحص',
+  not_check: 'لم يُفحص',
+  accepted: 'مقبول',
+  rejected: 'مرفوض',
+};
+
+/** حالة صنف في الجرد itemInventoryStatus (قيم الباكند: extra, ok, missing) */
+export const ITEM_INVENTORY_STATUS_LABELS: Record<string, string> = {
+  extra: 'زائد',
+  ok: 'مطابق',
+  missing: 'ناقص',
+};
+
 /** تحويل قيمة إلى نص عربي */
 export function getLabel(labels: Record<string, string>, value: string): string {
   return labels[value] ?? value ?? '—';

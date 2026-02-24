@@ -3,10 +3,17 @@
  */
 
 import api from './config';
-import type { AuthorizationsApiResponse, AuthorizationsFetchParams } from '@/types/authorization';
+import type {
+  AuthorizationsApiResponse,
+  AuthorizationsFetchParams,
+  LastAuthorizationDataResponse,
+} from '@/types/authorization';
 import { formatDateToISO } from '@/lib/utils/dateUtils';
+import { formatPlateNameForApi } from '@/lib/utils/plateUtils';
 
 const AUTHORIZATIONS_ENDPOINT = '/vehicle-authorizations';
+/** بيانات المركبة والسائق - مطابق لـ: GET /vehicle-authorizations/api/last-authorization-data?vehiclePlateName=... */
+const LAST_AUTHORIZATION_DATA_ENDPOINT = '/vehicle-authorizations/api/last-authorization-data';
 
 function buildParams(params?: AuthorizationsFetchParams): Record<string, string> {
   const query: Record<string, string> = {};
@@ -67,4 +74,19 @@ export async function cancelAuthorization(vehicleAuthorizationId: string): Promi
   if (result.success === false && result.message) {
     throw new Error(result.message);
   }
+}
+
+/**
+ * جلب آخر تفويض لمركبة حسب رقم اللوحة (بيانات المركبة والسائق).
+ * يستدعي: GET /vehicle-authorizations/api/last-authorization-data?vehiclePlateName=...
+ * مع هيدر: Authorization: Bearer <token>
+ */
+export async function fetchLastAuthorizationData(
+  vehiclePlateName: string
+): Promise<LastAuthorizationDataResponse> {
+  const plate = formatPlateNameForApi(vehiclePlateName);
+  const { data } = await api.get<LastAuthorizationDataResponse>(LAST_AUTHORIZATION_DATA_ENDPOINT, {
+    params: { vehiclePlateName: plate },
+  });
+  return data;
 }

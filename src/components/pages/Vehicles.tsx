@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/Input';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { useVehicles } from '@/hooks/useVehicles';
+import { useLastAuthorizationData } from '@/hooks/useLastAuthorizationData';
+import { VehicleDriverSummary } from '@/components/ui/VehicleDriverSummary';
 import type { VehicleDisplay } from '@/lib/vehicles/mappers';
 import { Portal } from '@/components/ui/Portal';
 
@@ -63,6 +65,8 @@ export function Vehicles() {
   const [showFilters, setShowFilters] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleDisplay | null>(null);
+  const selectedPlateName = selectedVehicle ? (selectedVehicle.plateName || selectedVehicle.plateNumber || null) : null;
+  const lastAuth = useLastAuthorizationData(selectedPlateName);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [formData, setFormData] = useState({
     plateNumber: '',
@@ -768,6 +772,14 @@ export function Vehicles() {
                   <p className="text-lg font-bold text-gray-900">{selectedVehicle.year}</p>
                 </div>
               </div>
+
+              {/* بيانات المركبة والسائق من آخر تفويض */}
+              <VehicleDriverSummary
+                data={lastAuth.data}
+                isLoading={lastAuth.isLoading}
+                error={lastAuth.error}
+                title="بيانات آخر تفويض (المركبة والسائق)"
+              />
 
               {/* Documents Status */}
               <div className="space-y-3">

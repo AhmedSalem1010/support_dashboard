@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/Button';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { useVehiclesList } from '@/hooks/useVehiclesList';
+import { useLastAuthorizationData } from '@/hooks/useLastAuthorizationData';
+import { VehicleDriverSummary } from '@/components/ui/VehicleDriverSummary';
 import { ACCIDENT_STATUS_LABELS, ACCIDENT_SEVERITY_LABELS, statusToArabic } from '@/lib/enums';
 import { Portal } from '@/components/ui/Portal';
 
@@ -32,6 +34,8 @@ export function Accidents() {
     estimatedCost: '',
     injuries: 'none',
   });
+  const selectedPlateName = vehicleOptions.find((o) => o.value === formData.vehicleId)?.plateName ?? null;
+  const lastAuth = useLastAuthorizationData(selectedPlateName);
 
   const accidents = [
     { 
@@ -978,6 +982,13 @@ export function Accidents() {
                         <option key={v.value} value={v.value}>{v.label}</option>
                       ))}
                     </select>
+                    <div className="mt-2">
+                      <VehicleDriverSummary
+                        data={lastAuth.data}
+                        isLoading={lastAuth.isLoading}
+                        error={lastAuth.error}
+                      />
+                    </div>
                   </div>
 
                   <div>

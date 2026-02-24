@@ -8,6 +8,8 @@ import type { VehicleDisplay } from '@/lib/vehicles/mappers';
 export interface VehicleOption {
   value: string;
   label: string;
+  /** رقم اللوحة للاستخدام مع آخر تفويض (مثل useLastAuthorizationData) */
+  plateName: string;
 }
 
 interface UseVehiclesListResult {
@@ -58,6 +60,7 @@ export function useVehiclesList(): UseVehiclesListResult {
   const vehicleOptions: VehicleOption[] = vehicles.map((v) => ({
     value: v.id,
     label: `${v.plateName || v.plateNumber} - ${v.manufacturer} ${v.model}`,
+    plateName: v.plateName || v.plateNumber || '',
   }));
 
   return {

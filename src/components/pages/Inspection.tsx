@@ -1,7 +1,13 @@
 'use client';
 
-import { useState, type FormEvent, type ChangeEvent } from "react";
+import { useState, useEffect, type FormEvent, type ChangeEvent } from "react";
 import { useVehiclesList } from "@/hooks/useVehiclesList";
+import { useLastAuthorizationData } from "@/hooks/useLastAuthorizationData";
+import { useVehicleEquipmentInfo } from "@/hooks/useVehicleEquipmentInfo";
+import { checkEquipmentInventoryStatus } from "@/lib/api/equipment";
+import { formatPlateNameForApi } from "@/lib/utils/plateUtils";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
+import { useNotificationsContext } from "@/components/ui/Notifications";
 import { Portal } from "@/components/ui/Portal";
 
 // --- Types ---
@@ -10,16 +16,18 @@ interface InspectionModalProps {
   onClose: () => void;
 }
 
-interface VehicleInfo {
-  id: string;
-  plateNumber: string;
-  manufacturer: string;
-  model: string;
-  year: number;
-  driver: { name: string; phone: string; team: string };
-}
-
 type EquipmentKey = "bakium" | "galandar" | "blicher" | "leMay" | "leShoft" | "ladderBig" | "ladderSmall";
+
+/** ربط أسماء المعدات من API (vehicle-info) بمفاتيح قائمة الفحص */
+const VEHICLE_INFO_ITEM_NAME_TO_KEY: Record<string, EquipmentKey> = {
+  "بليشر": "blicher",
+  "باكيوم": "bakium",
+  "قلندر": "galandar",
+  "سلم صغير": "ladderSmall",
+  "سلم كبير": "ladderBig",
+  "لي ماء": "leMay",
+  "لي شفط": "leShoft",
+};
 
 interface MediaUploaderProps {
   icon: React.ReactNode;
@@ -121,7 +129,7 @@ function MediaUploader({ icon, label, sub, inputId, accept, multiple = false, on
 export default function InspectionModal({ isOpen, onClose }: InspectionModalProps) {
   const [inspectionType, setInspectionType] = useState("vehicle");
   const [selectedVehicle, setSelectedVehicle] = useState("");
-  const [vehicleInfo, setVehicleInfo] = useState<VehicleInfo | null>(null);
+  const [vehicleAuthorizationId, setVehicleAuthorizationId] = useState<string | null>(null);
   const [supervisor, setSupervisor] = useState("");
   const [notes, setNotes] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -136,6 +144,11 @@ export default function InspectionModal({ isOpen, onClose }: InspectionModalProp
   const [accommodationVideo, setAccommodationVideo] = useState<File | null>(null);
 
   const { vehicles, vehicleOptions } = useVehiclesList();
+  const selectedPlateName = vehicleOptions.find((o) => o.value === selectedVehicle)?.plateName ?? null;
+  const lastAuth = useLastAuthorizationData(selectedPlateName);
+  const { data: vehicleEquipmentData } = useVehicleEquipmentInfo(selectedPlateName);
+  const selectedVehicleData = selectedVehicle ? vehicles.find((v) => v.id === selectedVehicle) : null;
+  const { success: showSuccess, error: showError } = useNotificationsContext();
 
   const equipmentLabels: Record<EquipmentKey, string> = {
     bakium: "باكيوم", galandar: "قلندر", blicher: "بليشر",
@@ -146,15 +159,60 @@ export default function InspectionModal({ isOpen, onClose }: InspectionModalProp
     leMay: "💧", leShoft: "🌀", ladderBig: "🪜", ladderSmall: "🪜",
   };
 
+  useEffect(() => {
+    if (!vehicleEquipmentData || vehicleEquipmentData.length === 0) {
+      if (!selectedPlateName) {
+        setEquipment({ bakium: false, galandar: false, blicher: false, leMay: false, leShoft: false, ladderBig: false, ladderSmall: false });
+      }
+      return;
+    }
+    setEquipment((prev) => {
+      const next = { ...prev };
+      vehicleEquipmentData.forEach((item) => {
+        const key = VEHICLE_INFO_ITEM_NAME_TO_KEY[item.itemName.trim()];
+        if (key != null && item.itemCount > 0) next[key] = true;
+      });
+      return next;
+    });
+  }, [vehicleEquipmentData, selectedPlateName]);
+
+  useEffect(() => {
+    if (lastAuth.data?.id) setVehicleAuthorizationId(lastAuth.data.id);
+    else setVehicleAuthorizationId(null);
+  }, [lastAuth.data?.id, selectedPlateName]);
+
   const handleVehicleSelect = (id: string) => {
     setSelectedVehicle(id);
-    if (!id) { setVehicleInfo(null); return; }
-    const v = vehicles.find((x) => x.id === id);
-    setVehicleInfo(v ? { id: v.id, plateNumber: v.plateName || v.plateNumber, manufacturer: v.manufacturer, model: v.model, year: v.year, driver: { name: "—", phone: "—", team: "—" } } : null);
+    if (!id) setVehicleAuthorizationId(null);
   };
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (inspectionType === "vehicle" && selectedPlateName) {
+      const equipmentInvetoryCheckStatus = (Object.keys(equipment) as EquipmentKey[]).map((key) => ({
+        itemName: equipmentLabels[key],
+        itemStatus: equipment[key] ? "usable" : "not_usable",
+      }));
+      try {
+        const res = await checkEquipmentInventoryStatus({
+          ...(vehicleAuthorizationId ? { vhecleAuthorizationId: vehicleAuthorizationId } : { vehiclePlateName: formatPlateNameForApi(selectedPlateName) }),
+          equipmentInvetoryCheckStatus,
+          equipmentInventoryType: "weekly_check",
+          equipmentInventoryNote: notes || undefined,
+          equipmentInventoryDescription: supervisor ? `المشرف: ${supervisor}` : undefined,
+        });
+        if (res.success) {
+          setSubmitted(true);
+          showSuccess("تم حفظ الفحص بنجاح", res.message);
+          setTimeout(() => { setSubmitted(false); onClose(); }, 2000);
+        } else {
+          showError("فشل حفظ الفحص", res.message || (res.error as Error)?.message || "حدث خطأ");
+        }
+      } catch (err) {
+        showError("فشل حفظ الفحص", err instanceof Error ? err.message : "حدث خطأ أثناء الإرسال");
+      }
+      return;
+    }
     setSubmitted(true);
     setTimeout(() => { setSubmitted(false); onClose(); }, 2000);
   };
@@ -227,46 +285,53 @@ export default function InspectionModal({ isOpen, onClose }: InspectionModalProp
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             {inspectionType === "vehicle" ? (
               <>
-                {/* Vehicle Info */}
-                <div style={{ background: "#f9fafb", borderRadius: 16, padding: 22, border: "1px solid #e5e7eb" }}>
+                {/* اختيار المركبة */}
+                <div style={{ background: "linear-gradient(180deg, #f0fdfa 0%, #f9fafb 100%)", borderRadius: 16, padding: 22, border: "1.5px solid #99f6e4", boxShadow: "0 2px 12px rgba(20, 184, 166, 0.08)" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
                     <div style={{ width: 8, height: 28, background: "linear-gradient(180deg, #14b8a6, #06b6d4)", borderRadius: 99 }} />
-                    <h3 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>معلومات المركبة</h3>
+                    <div>
+                      <h3 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>المركبة</h3>
+                      <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>ابحث برقم اللوحة أو الموديل ثم اختر المركبة</p>
+                    </div>
                   </div>
-                  <div style={{ marginBottom: 16 }}>
-                    <label style={{ fontSize: 13, fontWeight: 600, color: "#1f2937", display: "block", marginBottom: 8 }}>اختر المركبة <span style={{ color: "#ef4444" }}>*</span></label>
-                    <select value={selectedVehicle} onChange={e => handleVehicleSelect(e.target.value)} required
-                      style={{ width: "100%", padding: "10px 14px", border: "1.5px solid #e5e7eb", borderRadius: 10, fontFamily: "inherit", fontSize: 14, color: "#1f2937", background: "white", cursor: "pointer", outline: "none" }}>
-                      <option value="">— اختر المركبة —</option>
-                      {vehicleOptions.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
-                    </select>
-                  </div>
-                  {vehicleInfo && (
-                    <div style={{ background: "linear-gradient(135deg, #f0fdfa 0%, #ecfdf5 100%)", borderRadius: 12, padding: 18, border: "1.5px solid #99f6e4" }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-                        <div style={{ background: "white", padding: 12, borderRadius: 10, border: "1px solid #ccfbf1" }}>
-                          <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, marginBottom: 4 }}>رقم اللوحة</div>
-                          <div style={{ fontSize: 15, fontWeight: 800, color: "#0f766e" }}>{vehicleInfo.plateNumber}</div>
+                  <SearchableSelect
+                    label="اختر المركبة"
+                    options={vehicleOptions}
+                    value={selectedVehicle}
+                    onChange={handleVehicleSelect}
+                    placeholder="ابحث أو اختر المركبة..."
+                    required
+                  />
+
+                  {selectedVehicle && (
+                    <div style={{ marginTop: 16 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 12 }}>بيانات المركبة والسائق</p>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                        <div style={{ background: "#f3f4f6", borderRadius: 12, padding: 14, border: "1px solid #e5e7eb" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                            <CarIcon />
+                            <span style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>المركبة</span>
+                          </div>
+                          {selectedVehicleData ? (
+                            <>
+                              <p style={{ fontSize: 14, fontWeight: 600, color: "#1f2937", margin: "0 0 4px" }}>{selectedVehicleData.plateName || selectedVehicleData.plateNumber}</p>
+                              <p style={{ fontSize: 13, color: "#6b7280", margin: "0 0 4px" }}>{selectedVehicleData.manufacturer} {selectedVehicleData.model} - {selectedVehicleData.year}</p>
+                              <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>{selectedVehicleData.vehicleType || "—"}</p>
+                            </>
+                          ) : (
+                            <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>—</p>
+                          )}
                         </div>
-                        <div style={{ background: "white", padding: 12, borderRadius: 10, border: "1px solid #ccfbf1" }}>
-                          <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, marginBottom: 4 }}>سنة الصنع</div>
-                          <div style={{ fontSize: 15, fontWeight: 800, color: "#0f766e" }}>{vehicleInfo.year}</div>
-                        </div>
-                        <div style={{ background: "white", padding: 12, borderRadius: 10, border: "1px solid #ccfbf1" }}>
-                          <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, marginBottom: 4 }}>الصانع</div>
-                          <div style={{ fontSize: 15, fontWeight: 800, color: "#0f766e" }}>{vehicleInfo.manufacturer}</div>
-                        </div>
-                        <div style={{ background: "white", padding: 12, borderRadius: 10, border: "1px solid #ccfbf1" }}>
-                          <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, marginBottom: 4 }}>الموديل</div>
-                          <div style={{ fontSize: 15, fontWeight: 800, color: "#0f766e" }}>{vehicleInfo.model}</div>
-                        </div>
-                      </div>
-                      <div style={{ background: "white", padding: 14, borderRadius: 10, border: "1px solid #ccfbf1" }}>
-                        <h4 style={{ fontSize: 13, fontWeight: 700, color: "#0f766e", margin: "0 0 10px", display: "flex", alignItems: "center", gap: 8 }}><UserIcon /> معلومات السائق</h4>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-                          <div><div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, marginBottom: 3 }}>الاسم</div><div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>{vehicleInfo.driver.name}</div></div>
-                          <div><div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, marginBottom: 3 }}>الهاتف</div><div style={{ fontSize: 14, fontWeight: 700, color: "#111827", direction: "ltr" }}>{vehicleInfo.driver.phone}</div></div>
-                          <div><div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, marginBottom: 3 }}>الفريق</div><div style={{ fontSize: 13, fontWeight: 600, color: "#0f766e", background: "#ecfdf5", padding: "6px 10px", borderRadius: 6 }}>{vehicleInfo.driver.team}</div></div>
+                        <div style={{ background: "#f3f4f6", borderRadius: 12, padding: 14, border: "1px solid #e5e7eb" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                            <UserIcon />
+                            <span style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>السائق</span>
+                          </div>
+                          {lastAuth.isLoading ? (
+                            <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>جاري التحميل...</p>
+                          ) : (
+                            <p style={{ fontSize: 14, fontWeight: 600, color: "#1f2937", margin: 0 }}>{lastAuth.data?.driver?.name ?? "—"}</p>
+                          )}
                         </div>
                       </div>
                     </div>

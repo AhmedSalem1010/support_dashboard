@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { RepairTypeSelector, type RepairTypeItem } from '@/components/ui/RepairTypeSelector';
 import { useVehiclesList } from '@/hooks/useVehiclesList';
+import { useLastAuthorizationData } from '@/hooks/useLastAuthorizationData';
+import { VehicleDriverSummary } from '@/components/ui/VehicleDriverSummary';
 import { MAINTENANCE_STATUS_LABELS, statusToArabic } from '@/lib/enums';
 import { Portal } from '@/components/ui/Portal';
 
@@ -40,6 +42,8 @@ export function Maintenance() {
 
   // خيارات القوائم المنسدلة - المركبات من API
   const { vehicleOptions } = useVehiclesList();
+  const selectedPlateName = vehicleOptions.find((o) => o.value === formData.vehicleId)?.plateName ?? null;
+  const lastAuth = useLastAuthorizationData(selectedPlateName);
   const maintenanceTypeOptions = [
     { value: 'oil', label: 'تغيير زيت' },
     { value: 'periodic', label: 'صيانة دورية' },
@@ -1045,6 +1049,13 @@ export function Maintenance() {
                       value={formData.vehicleId}
                       onChange={(val) => setFormData({ ...formData, vehicleId: val })}
                     />
+                    <div className="mt-2">
+                      <VehicleDriverSummary
+                        data={lastAuth.data}
+                        isLoading={lastAuth.isLoading}
+                        error={lastAuth.error}
+                      />
+                    </div>
                   </div>
 
                   <div>

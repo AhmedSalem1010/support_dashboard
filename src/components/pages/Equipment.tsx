@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/Button';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { fetchEquipmentInventories } from '@/lib/api/equipment';
-import type { VehicleEquipmentInventory, ItemStatus, EquipmentInventoryStatus, EquipmentInventoryType } from '@/types/equipment';
+import type { VehicleEquipmentInventory, EquipmentInventoryStatus, EquipmentInventoryType } from '@/types/equipment';
+import { EQUIPMENT_INVENTORY_STATUS_LABELS, ITEM_INVENTORY_STATUS_LABELS, getLabel } from '@/lib/enums';
 import { useNotificationsContext } from '@/components/ui/Notifications';
 import { Portal } from '@/components/ui/Portal';
 
@@ -22,21 +23,47 @@ export function Equipment() {
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState({ vehiclePlateName: '', equipmentInventoryStatus: '', equipmentInventoryType: '' });
+  const [filters, setFilters] = useState({
+    vehiclePlateName: '',
+    vehicleSerialNumber: '',
+    driverName: '',
+    supervisorName: '',
+    equipmentInventoryStatus: '',
+    equipmentInventoryType: '',
+  });
   const [showInspectionModal, setShowInspectionModal] = useState(false);
   const [showInventoryModal, setShowInventoryModal] = useState(false);
   const { error: showError, success: showSuccess, info } = useNotificationsContext();
 
   const updateFilter = (key: keyof typeof filters, value: string) => { setFilters(prev => ({ ...prev, [key]: value })); setPage(1); };
   const hasActiveFilters = Object.values(filters).some(Boolean);
-  const clearFilters = () => { setFilters({ vehiclePlateName: '', equipmentInventoryStatus: '', equipmentInventoryType: '' }); setPage(1); };
+  const clearFilters = () => {
+    setFilters({
+      vehiclePlateName: '',
+      vehicleSerialNumber: '',
+      driverName: '',
+      supervisorName: '',
+      equipmentInventoryStatus: '',
+      equipmentInventoryType: '',
+    });
+    setPage(1);
+  };
 
   useEffect(() => { loadInventories(); }, [page, filters]);
 
   const loadInventories = async () => {
     setIsLoading(true); setError(null);
     try {
-      const response = await fetchEquipmentInventories({ page, limit: 10, equipmentInventoryStatus: (filters.equipmentInventoryStatus as EquipmentInventoryStatus) || undefined, equipmentInventoryType: (filters.equipmentInventoryType as EquipmentInventoryType) || undefined, vehiclePlateName: filters.vehiclePlateName || undefined });
+      const response = await fetchEquipmentInventories({
+        page,
+        limit: 10,
+        equipmentInventoryStatus: (filters.equipmentInventoryStatus as EquipmentInventoryStatus) || undefined,
+        equipmentInventoryType: (filters.equipmentInventoryType as EquipmentInventoryType) || undefined,
+        vehiclePlateName: filters.vehiclePlateName || undefined,
+        vehicleSerialNumber: filters.vehicleSerialNumber || undefined,
+        driverName: filters.driverName || undefined,
+        supervisorName: filters.supervisorName || undefined,
+      });
       setInventories(response.data); setMeta(response.meta);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'حدث خطأ أثناء تحميل البيانات';
@@ -44,27 +71,56 @@ export function Equipment() {
     } finally { setIsLoading(false); }
   };
 
-  const stats = { total: meta?.total ?? inventories.length, checked: inventories.filter(i => i.equipmentInventoryStatus === 'check').length, pending: inventories.filter(i => i.equipmentInventoryStatus === 'pending').length, completed: inventories.filter(i => i.equipmentInventoryStatus === 'completed').length };
+  const stats = {
+    total: meta?.total ?? inventories.length,
+    check: inventories.filter(i => i.equipmentInventoryStatus === 'check').length,
+    not_check: inventories.filter(i => i.equipmentInventoryStatus === 'not_check').length,
+    accepted: inventories.filter(i => i.equipmentInventoryStatus === 'accepted').length,
+    rejected: inventories.filter(i => i.equipmentInventoryStatus === 'rejected').length,
+  };
 
   const getStatusBadge = (status: EquipmentInventoryStatus) => {
-    const map: Record<string, { label: string; variant: 'success' | 'warning' | 'info' | 'default' }> = { check: { label: 'تم الفحص', variant: 'success' }, pending: { label: 'قيد الانتظار', variant: 'warning' }, completed: { label: 'مكتمل', variant: 'info' } };
-    return map[status] ?? { label: status, variant: 'default' as const };
+    const map: Record<string, { label: string; variant: 'success' | 'warning' | 'info' | 'default' }> = {
+      check: { label: getLabel(EQUIPMENT_INVENTORY_STATUS_LABELS, status), variant: 'success' },
+      not_check: { label: getLabel(EQUIPMENT_INVENTORY_STATUS_LABELS, status), variant: 'warning' },
+      accepted: { label: getLabel(EQUIPMENT_INVENTORY_STATUS_LABELS, status), variant: 'info' },
+      rejected: { label: getLabel(EQUIPMENT_INVENTORY_STATUS_LABELS, status), variant: 'default' },
+    };
+    return map[status] ?? { label: getLabel(EQUIPMENT_INVENTORY_STATUS_LABELS, status) || status, variant: 'default' as const };
   };
   const getTypeBadge = (type: EquipmentInventoryType) => {
-    const map: Record<string, { label: string; variant: 'success' | 'warning' | 'info' | 'default' }> = { authorization: { label: 'تفويض', variant: 'info' }, return: { label: 'إرجاع', variant: 'success' }, inspection: { label: 'فحص', variant: 'warning' } };
+    const map: Record<string, { label: string; variant: 'success' | 'warning' | 'info' | 'default' }> = {
+      authorization: { label: 'تفويض', variant: 'info' },
+      inventory: { label: 'جرد', variant: 'default' },
+      home_check: { label: 'فحص السكن', variant: 'info' },
+      weekly_check: { label: 'فحص أسبوعي', variant: 'warning' },
+      monthly_check: { label: 'فحص شهري', variant: 'warning' },
+      yearly_check: { label: 'فحص سنوي', variant: 'warning' },
+    };
     return map[type] ?? { label: type, variant: 'default' as const };
   };
-  const getItemStatusLabel = (status: ItemStatus) => ({ MATCHED: 'مطابق', EXTRA: 'زائد', MISSING: 'ناقص' }[status] ?? status);
-  const getItemStatusColor = (status: ItemStatus) => ({ MATCHED: 'bg-green-50 text-green-700 border-green-200', EXTRA: 'bg-orange-50 text-orange-700 border-orange-200', MISSING: 'bg-red-50 text-red-700 border-red-200' }[status] ?? 'bg-gray-50 text-gray-700 border-gray-200');
-  const calculateItemsStats = (items: any[] | null) => { const s = items ?? []; return { matched: s.filter((i: any) => i.itemStatus === 'MATCHED').length, extra: s.filter((i: any) => i.itemStatus === 'EXTRA').length, missing: s.filter((i: any) => i.itemStatus === 'MISSING').length, total: s.length }; };
+  /** تسمية حالة الصنف في الجرد (itemInventoryStatus من الباكند: extra, ok, missing) */
+  const getItemInventoryStatusLabel = (status: string | undefined) => (status ? getLabel(ITEM_INVENTORY_STATUS_LABELS, status) : '—');
+  const getItemInventoryStatusColor = (status: string | undefined) =>
+    (status === 'ok' ? 'bg-green-50 text-green-700 border-green-200' : status === 'extra' ? 'bg-orange-50 text-orange-700 border-orange-200' : status === 'missing' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-50 text-gray-700 border-gray-200');
+  /** إحصائيات الأصناف حسب itemInventoryStatus (ok => مطابق، extra => زائد، missing => ناقص) */
+  const calculateItemsStats = (items: any[] | null) => {
+    const s = items ?? [];
+    return {
+      ok: s.filter((i: any) => i.itemInventoryStatus === 'ok').length,
+      extra: s.filter((i: any) => i.itemInventoryStatus === 'extra').length,
+      missing: s.filter((i: any) => i.itemInventoryStatus === 'missing').length,
+      total: s.length,
+    };
+  };
 
   const columns = [
     { key: 'id', label: 'رقم الجرد', render: (_: unknown, row: any) => (<div className="flex items-center gap-3"><div className="relative"><div className="w-12 h-12 bg-gradient-to-br from-[#09b9b5]/10 to-[#09b9b5]/20 rounded-xl flex items-center justify-center border border-[#09b9b5]/20"><Package className="w-5 h-5 text-[#09b9b5]" /></div><div className="absolute -bottom-1 -right-1 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-md"><CheckCircle className="w-3 h-3 text-green-500" /></div></div><div><p className="font-bold text-gray-900">{row.id.slice(0, 8)}</p><p className="text-xs text-gray-500">{getTypeBadge(row.equipmentInventoryType).label}</p></div></div>) },
-    { key: 'vehicleAuthorization', label: 'المركبة', render: (_: unknown, row: any) => (<div className="flex items-center gap-2"><div className="p-2 bg-blue-50 rounded-lg"><Car className="w-4 h-4 text-blue-600" /></div><span className="font-semibold">{row.vehicleAuthorization.vehicle.plateName}</span></div>) },
-    { key: 'supervisor', label: 'المشرف والسائق', render: (_: unknown, row: any) => (<div className="space-y-1"><div className="flex items-center gap-2"><Shield className="w-4 h-4 text-gray-400" /><span className="text-sm font-medium">{row.supervisor.name}</span></div><div className="flex items-center gap-2"><User className="w-4 h-4 text-gray-400" /><span className="text-xs text-gray-500">{row.vehicleAuthorization.userDriver.name}</span></div></div>) },
-    { key: 'items', label: 'الأصناف', render: (_: unknown, row: any) => { const s = calculateItemsStats(row.items); return (<div className="flex gap-2"><span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded-lg text-xs font-semibold"><CheckCircle className="w-3 h-3" />{s.matched}</span><span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-50 text-orange-700 rounded-lg text-xs font-semibold"><AlertTriangle className="w-3 h-3" />{s.extra}</span><span className="inline-flex items-center gap-1 px-2 py-1 bg-red-50 text-red-700 rounded-lg text-xs font-semibold"><XCircle className="w-3 h-3" />{s.missing}</span></div>); } },
+    { key: 'vehicleAuthorization', label: 'المركبة', render: (_: unknown, row: any) => (<div className="flex items-center gap-2"><div className="p-2 bg-blue-50 rounded-lg"><Car className="w-4 h-4 text-blue-600" /></div><span className="font-semibold">{row.vehicleAuthorization?.vehicle?.plateName ?? '—'}</span></div>) },
+    { key: 'supervisor', label: 'المشرف والسائق', render: (_: unknown, row: any) => (<div className="space-y-1"><div className="flex items-center gap-2"><Shield className="w-4 h-4 text-gray-400" /><span className="text-sm font-medium">{row.supervisor?.name}</span></div><div className="flex items-center gap-2"><User className="w-4 h-4 text-gray-400" /><span className="text-xs text-gray-500">{row.vehicleAuthorization?.userDriver?.name ?? '—'}</span></div></div>) },
+    { key: 'items', label: 'الأصناف', render: (_: unknown, row: any) => { const s = calculateItemsStats(row.items); return (<div className="flex gap-2"><span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded-lg text-xs font-semibold"><CheckCircle className="w-3 h-3" />{s.ok}</span><span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-50 text-orange-700 rounded-lg text-xs font-semibold"><AlertTriangle className="w-3 h-3" />{s.extra}</span><span className="inline-flex items-center gap-1 px-2 py-1 bg-red-50 text-red-700 rounded-lg text-xs font-semibold"><XCircle className="w-3 h-3" />{s.missing}</span></div>); } },
     { key: 'equipmentInventoryType', label: 'النوع', render: (value: unknown) => (<Badge variant={getTypeBadge(value as EquipmentInventoryType).variant}>{getTypeBadge(value as EquipmentInventoryType).label}</Badge>) },
-    { key: 'equipmentInventoryStatus', label: 'الحالة', render: (value: unknown) => { const s = getStatusBadge(value as EquipmentInventoryStatus); const Icon = value === 'check' ? CheckCircle : value === 'pending' ? AlertCircle : CheckCircle; return (<Badge variant={s.variant} className="flex items-center gap-1.5"><Icon className="w-3.5 h-3.5" />{s.label}</Badge>); } },
+    { key: 'equipmentInventoryStatus', label: 'الحالة', render: (value: unknown) => { const s = getStatusBadge(value as EquipmentInventoryStatus); const Icon = value === 'check' ? CheckCircle : value === 'not_check' ? AlertCircle : value === 'rejected' ? XCircle : CheckCircle; return (<Badge variant={s.variant} className="flex items-center gap-1.5"><Icon className="w-3.5 h-3.5" />{s.label}</Badge>); } },
     { key: 'actions', label: 'الإجراءات', render: (_: unknown, row: any) => (<div className="flex items-center gap-1"><button onClick={(e) => { e.stopPropagation(); setSelectedInventory(row as VehicleEquipmentInventory); }} className="p-2 hover:bg-blue-50 rounded-lg transition-colors group" title="عرض التفاصيل"><Eye className="w-4 h-4 text-gray-400 group-hover:text-blue-600" /></button></div>) },
   ];
 
@@ -112,7 +168,7 @@ export function Equipment() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <Card className="border-r-4 border-[#09b9b5] hover:shadow-xl transition-all duration-300 group cursor-pointer" onClick={() => info('إجمالي السجلات', `يوجد حالياً ${stats.total} سجل جرد في النظام`)}>
           <div className="flex items-center justify-between">
             <div>
@@ -126,12 +182,12 @@ export function Equipment() {
             </div>
           </div>
         </Card>
-        <Card className="border-r-4 border-[#00a287] hover:shadow-xl transition-all duration-300 group cursor-pointer" onClick={() => showSuccess('تم الفحص', `${stats.checked} سجل تم فحصه`)}>
+        <Card className="border-r-4 border-[#00a287] hover:shadow-xl transition-all duration-300 group cursor-pointer" onClick={() => showSuccess('تم الفحص', `${stats.check} سجل تم فحصه`)}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs sm:text-sm text-gray-600 mb-1 flex items-center gap-1.5"><span className="w-2 h-2 bg-[#00a287] rounded-full animate-pulse"></span>تم الفحص</p>
-              <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 group-hover:scale-110 transition-transform">{stats.checked}</p>
-              <p className="text-xs text-green-600 mt-1 font-semibold">{stats.total > 0 ? Math.round((stats.checked / stats.total) * 100) : 0}% مكتملة</p>
+              <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 group-hover:scale-110 transition-transform">{stats.check}</p>
+              <p className="text-xs text-green-600 mt-1 font-semibold">{stats.total > 0 ? Math.round((stats.check / stats.total) * 100) : 0}%</p>
             </div>
             <div className="relative">
               <div className="absolute inset-0 bg-[#00a287]/20 rounded-full blur-xl group-hover:blur-2xl transition-all"></div>
@@ -142,9 +198,9 @@ export function Equipment() {
         <Card className="border-r-4 border-[#f57c00] hover:shadow-xl transition-all duration-300 group cursor-pointer">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs sm:text-sm text-gray-600 mb-1 flex items-center gap-1.5"><span className="w-2 h-2 bg-[#f57c00] rounded-full animate-pulse"></span>قيد الانتظار</p>
-              <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 group-hover:scale-110 transition-transform">{stats.pending}</p>
-              <p className="text-xs text-orange-600 mt-1 font-semibold">تحتاج مراجعة</p>
+              <p className="text-xs sm:text-sm text-gray-600 mb-1 flex items-center gap-1.5"><span className="w-2 h-2 bg-[#f57c00] rounded-full animate-pulse"></span>لم يُفحص</p>
+              <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 group-hover:scale-110 transition-transform">{stats.not_check}</p>
+              <p className="text-xs text-orange-600 mt-1 font-semibold">تحتاج فحص</p>
             </div>
             <div className="relative">
               <div className="absolute inset-0 bg-[#f57c00]/20 rounded-full blur-xl group-hover:blur-2xl transition-all"></div>
@@ -155,13 +211,26 @@ export function Equipment() {
         <Card className="border-r-4 border-[#1976d2] hover:shadow-xl transition-all duration-300 group cursor-pointer">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs sm:text-sm text-gray-600 mb-1 flex items-center gap-1.5"><span className="w-2 h-2 bg-[#1976d2] rounded-full animate-pulse"></span>مكتمل</p>
-              <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 group-hover:scale-110 transition-transform">{stats.completed}</p>
-              <p className="text-xs text-blue-600 mt-1 font-semibold">منجز</p>
+              <p className="text-xs sm:text-sm text-gray-600 mb-1 flex items-center gap-1.5"><span className="w-2 h-2 bg-[#1976d2] rounded-full animate-pulse"></span>مقبول</p>
+              <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 group-hover:scale-110 transition-transform">{stats.accepted}</p>
+              <p className="text-xs text-blue-600 mt-1 font-semibold">مقبول</p>
             </div>
             <div className="relative">
               <div className="absolute inset-0 bg-[#1976d2]/20 rounded-full blur-xl group-hover:blur-2xl transition-all"></div>
               <FileText className="w-8 h-8 sm:w-10 sm:h-10 text-[#1976d2] flex-shrink-0 relative z-10 group-hover:scale-110 transition-all" />
+            </div>
+          </div>
+        </Card>
+        <Card className="border-r-4 border-[#d32f2f] hover:shadow-xl transition-all duration-300 group cursor-pointer">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs sm:text-sm text-gray-600 mb-1 flex items-center gap-1.5"><span className="w-2 h-2 bg-[#d32f2f] rounded-full animate-pulse"></span>مرفوض</p>
+              <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 group-hover:scale-110 transition-transform">{stats.rejected}</p>
+              <p className="text-xs text-red-600 mt-1 font-semibold">مرفوض</p>
+            </div>
+            <div className="relative">
+              <div className="absolute inset-0 bg-[#d32f2f]/20 rounded-full blur-xl group-hover:blur-2xl transition-all"></div>
+              <XCircle className="w-8 h-8 sm:w-10 sm:h-10 text-[#d32f2f] flex-shrink-0 relative z-10 group-hover:scale-110 transition-all" />
             </div>
           </div>
         </Card>
@@ -171,18 +240,31 @@ export function Equipment() {
       <Card className="border-t-4 border-[#09b9b5]">
         <div className="space-y-4">
           {showFilters && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 p-4 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-100 animate-slideDown">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 p-4 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-100 animate-slideDown">
               <div>
                 <label className="block text-sm font-medium text-[#4d647c] mb-2">لوحة المركبة</label>
                 <input type="text" value={filters.vehiclePlateName} onChange={(e) => updateFilter('vehiclePlateName', e.target.value)} placeholder="مثال: ر أ ص 8299" className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#4d647c] mb-2">الرقم التسلسلي للمركبة</label>
+                <input type="text" value={filters.vehicleSerialNumber} onChange={(e) => updateFilter('vehicleSerialNumber', e.target.value)} placeholder="رقم التسلسل" className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#4d647c] mb-2">اسم السائق</label>
+                <input type="text" value={filters.driverName} onChange={(e) => updateFilter('driverName', e.target.value)} placeholder="اسم السائق" className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#4d647c] mb-2">اسم المشرف</label>
+                <input type="text" value={filters.supervisorName} onChange={(e) => updateFilter('supervisorName', e.target.value)} placeholder="اسم المشرف" className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-[#4d647c] mb-2">حالة الجرد</label>
                 <select value={filters.equipmentInventoryStatus} onChange={(e) => updateFilter('equipmentInventoryStatus', e.target.value)} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white">
                   <option value="">الكل</option>
                   <option value="check">تم الفحص</option>
-                  <option value="pending">قيد الانتظار</option>
-                  <option value="completed">مكتمل</option>
+                  <option value="not_check">لم يُفحص</option>
+                  <option value="accepted">مقبول</option>
+                  <option value="rejected">مرفوض</option>
                 </select>
               </div>
               <div>
@@ -190,12 +272,15 @@ export function Equipment() {
                 <select value={filters.equipmentInventoryType} onChange={(e) => updateFilter('equipmentInventoryType', e.target.value)} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white">
                   <option value="">الكل</option>
                   <option value="authorization">تفويض</option>
-                  <option value="return">إرجاع</option>
-                  <option value="inspection">فحص</option>
+                  <option value="inventory">جرد</option>
+                  <option value="home_check">فحص السكن</option>
+                  <option value="weekly_check">فحص أسبوعي</option>
+                  <option value="monthly_check">فحص شهري</option>
+                  <option value="yearly_check">فحص سنوي</option>
                 </select>
               </div>
               {hasActiveFilters && (
-                <div className="sm:col-span-3 flex justify-end">
+                <div className="sm:col-span-2 lg:col-span-6 flex justify-end">
                   <Button variant="outline" onClick={clearFilters} className="text-sm"><X className="w-4 h-4 ml-2" />مسح الفلاتر</Button>
                 </div>
               )}
@@ -233,7 +318,7 @@ export function Equipment() {
                       <div className="p-3 bg-white rounded-xl shadow-md"><Package className="w-6 h-6 text-[#09b9b5]" /></div>
                       <div>
                         <h3 className="font-bold text-lg text-gray-900">{inventory.id.slice(0, 8)}</h3>
-                        <p className="text-sm text-gray-600">{inventory.vehicleAuthorization.vehicle.plateName}</p>
+                        <p className="text-sm text-gray-600">{inventory.vehicleAuthorization?.vehicle?.plateName ?? '—'}</p>
                       </div>
                     </div>
                     <Badge variant={getStatusBadge(inventory.equipmentInventoryStatus).variant}>{getStatusBadge(inventory.equipmentInventoryStatus).label}</Badge>
@@ -243,7 +328,7 @@ export function Equipment() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex items-center gap-2 text-sm">
                       <div className="p-2 bg-blue-50 rounded-lg"><Car className="w-4 h-4 text-blue-600" /></div>
-                      <div><p className="text-xs text-gray-500">المركبة</p><p className="font-semibold text-gray-900">{inventory.vehicleAuthorization.vehicle.plateName}</p></div>
+                      <div><p className="text-xs text-gray-500">المركبة</p><p className="font-semibold text-gray-900">{inventory.vehicleAuthorization?.vehicle?.plateName ?? '—'}</p></div>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <div className="p-2 bg-purple-50 rounded-lg"><Shield className="w-4 h-4 text-purple-600" /></div>
@@ -253,7 +338,7 @@ export function Equipment() {
                   <div className="p-3 bg-gray-50 rounded-xl space-y-2">
                     <div className="flex justify-between text-sm"><span className="text-gray-600">إجمالي الأصناف</span><span className="font-semibold">{s.total}</span></div>
                     <div className="flex gap-2">
-                      <span className="flex-1 text-center py-1 bg-green-50 text-green-700 rounded-lg text-xs font-semibold">مطابق: {s.matched}</span>
+                      <span className="flex-1 text-center py-1 bg-green-50 text-green-700 rounded-lg text-xs font-semibold">مطابق: {s.ok}</span>
                       <span className="flex-1 text-center py-1 bg-orange-50 text-orange-700 rounded-lg text-xs font-semibold">زائد: {s.extra}</span>
                       <span className="flex-1 text-center py-1 bg-red-50 text-red-700 rounded-lg text-xs font-semibold">ناقص: {s.missing}</span>
                     </div>
@@ -318,7 +403,7 @@ export function Equipment() {
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold mb-1">جرد العهدة</h2>
-                  <p className="text-white/90">{selectedInventory.vehicleAuthorization.vehicle.plateName}</p>
+                  <p className="text-white/90">{selectedInventory.vehicleAuthorization?.vehicle?.plateName}</p>
                   <div className="flex gap-2 mt-2">
                     <Badge variant={getStatusBadge(selectedInventory.equipmentInventoryStatus).variant} className="bg-white/20 border-white/30">
                       {getStatusBadge(selectedInventory.equipmentInventoryStatus).label}
@@ -339,12 +424,12 @@ export function Equipment() {
                 <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl border border-blue-100">
                   <Car className="w-6 h-6 text-blue-600 mx-auto mb-2" />
                   <p className="text-xs text-gray-600 mb-1">المركبة</p>
-                  <p className="text-sm font-bold text-gray-900">{selectedInventory.vehicleAuthorization.vehicle.plateName}</p>
+                  <p className="text-sm font-bold text-gray-900">{selectedInventory.vehicleAuthorization?.vehicle?.plateName}</p>
                 </div>
                 <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100/50 rounded-xl border border-green-100">
                   <User className="w-6 h-6 text-green-600 mx-auto mb-2" />
                   <p className="text-xs text-gray-600 mb-1">السائق</p>
-                  <p className="text-sm font-bold text-gray-900">{selectedInventory.vehicleAuthorization.userDriver.name}</p>
+                  <p className="text-sm font-bold text-gray-900">{selectedInventory.vehicleAuthorization?.userDriver?.name ?? '—'}</p>
                 </div>
                 <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl border border-purple-100">
                   <Shield className="w-6 h-6 text-purple-600 mx-auto mb-2" />
@@ -368,7 +453,7 @@ export function Equipment() {
                   <div className="grid grid-cols-3 gap-4">
                     <div className="text-center p-3 bg-green-50 rounded-xl border border-green-100">
                       <CheckCircle className="w-6 h-6 text-green-600 mx-auto mb-1" />
-                      <p className="text-2xl font-bold text-green-700">{s.matched}</p>
+                      <p className="text-2xl font-bold text-green-700">{s.ok}</p>
                       <p className="text-xs text-gray-600 mt-1">مطابق</p>
                     </div>
                     <div className="text-center p-3 bg-orange-50 rounded-xl border border-orange-100">
@@ -393,20 +478,19 @@ export function Equipment() {
                 </h3>
                 <div className="space-y-2">
                   {(selectedInventory.items ?? []).map((item: any, index: number) => (
-                    <div key={index} className={`p-4 rounded-xl border-2 transition-all hover:shadow-md ${getItemStatusColor(item.itemStatus)}`}>
+                    <div key={index} className={`p-4 rounded-xl border-2 transition-all hover:shadow-md ${getItemInventoryStatusColor(item.itemInventoryStatus)}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          {item.itemStatus === 'MATCHED' ? <CheckCircle className="w-5 h-5 text-green-600" /> : item.itemStatus === 'EXTRA' ? <AlertTriangle className="w-5 h-5 text-orange-600" /> : <XCircle className="w-5 h-5 text-red-600" />}
+                          {item.itemInventoryStatus === 'ok' ? <CheckCircle className="w-5 h-5 text-green-600" /> : item.itemInventoryStatus === 'extra' ? <AlertTriangle className="w-5 h-5 text-orange-600" /> : item.itemInventoryStatus === 'missing' ? <XCircle className="w-5 h-5 text-red-600" /> : <Package className="w-5 h-5 text-gray-400" />}
                           <div>
                             <p className="font-semibold text-gray-900">{item.itemName}</p>
                             <p className="text-sm text-gray-600">العدد: {item.itemCount}</p>
                           </div>
                         </div>
                         <div className="text-left">
-                          <Badge variant={item.itemStatus === 'MATCHED' ? 'success' : item.itemStatus === 'EXTRA' ? 'warning' : 'danger'}>
-                            {getItemStatusLabel(item.itemStatus)}
+                          <Badge variant={item.itemInventoryStatus === 'ok' ? 'success' : item.itemInventoryStatus === 'extra' ? 'warning' : item.itemInventoryStatus === 'missing' ? 'danger' : 'default'}>
+                            {getItemInventoryStatusLabel(item.itemInventoryStatus)}
                           </Badge>
-                          <p className="text-xs text-gray-600 mt-1">{item.itemInventoryStatus === 'AVAILABLE' ? 'متوفر' : 'غير متوفر'}</p>
                         </div>
                       </div>
                     </div>
