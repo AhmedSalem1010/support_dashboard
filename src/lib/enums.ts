@@ -32,8 +32,10 @@ export const MAINTENANCE_STATUS_LABELS: Record<string, string> = {
 /** نوع الصيانة */
 export const MAINTENANCE_TYPE_LABELS: Record<string, string> = {
   oil_change: 'تغيير زيت',
+  oil: 'تغيير زيت',
   periodic: 'صيانة دورية',
   repair: 'إصلاح',
+  accident: 'حادث مروري',
   other: 'أخرى',
 };
 

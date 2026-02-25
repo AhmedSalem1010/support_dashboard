@@ -304,10 +304,10 @@ export default function InspectionModal({ isOpen, onClose }: InspectionModalProp
                   />
 
                   {selectedVehicle && (
-                    <div style={{ marginTop: 16 }}>
+                    <div style={{ marginTop: 16, width: "100%" }}>
                       <p style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 12 }}>بيانات المركبة والسائق</p>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                        <div style={{ background: "#f3f4f6", borderRadius: 12, padding: 14, border: "1px solid #e5e7eb" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, width: "100%", minWidth: 0 }}>
+                        <div style={{ background: "#f3f4f6", borderRadius: 12, padding: 14, border: "1px solid #e5e7eb", minWidth: 0 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                             <CarIcon />
                             <span style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>المركبة</span>
@@ -322,7 +322,7 @@ export default function InspectionModal({ isOpen, onClose }: InspectionModalProp
                             <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>—</p>
                           )}
                         </div>
-                        <div style={{ background: "#f3f4f6", borderRadius: 12, padding: 14, border: "1px solid #e5e7eb" }}>
+                        <div style={{ background: "#f3f4f6", borderRadius: 12, padding: 14, border: "1px solid #e5e7eb", minWidth: 0 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                             <UserIcon />
                             <span style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>السائق</span>

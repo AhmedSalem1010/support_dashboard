@@ -12,10 +12,16 @@ import { RepairTypeSelector, type RepairTypeItem } from '@/components/ui/RepairT
 import { useVehiclesList } from '@/hooks/useVehiclesList';
 import { useLastAuthorizationData } from '@/hooks/useLastAuthorizationData';
 import { VehicleDriverSummary } from '@/components/ui/VehicleDriverSummary';
-import { MAINTENANCE_STATUS_LABELS, statusToArabic } from '@/lib/enums';
+import { MAINTENANCE_STATUS_LABELS, MAINTENANCE_TYPE_LABELS, statusToArabic } from '@/lib/enums';
 import { Portal } from '@/components/ui/Portal';
+import { useNotificationsContext } from '@/components/ui/Notifications';
+import { createVehicleMaintaince } from '@/lib/api/maintenance';
+import { useMaintenanceList } from '@/hooks/useMaintenanceList';
+import type { VehicleMaintainceItem } from '@/types/maintenance';
+import { Pagination } from '@/components/ui/Pagination';
 
 export function Maintenance() {
+  const { success: showSuccess, error: showError, loading: showLoading, removeNotification } = useNotificationsContext();
   const [showModal, setShowModal] = useState(false);
   const [selectedMaintenance, setSelectedMaintenance] = useState<any>(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -23,6 +29,22 @@ export function Maintenance() {
   const [filterType, setFilterType] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterCostOn, setFilterCostOn] = useState('');
+  const [listPage, setListPage] = useState(1);
+  const [listLimitChoice, setListLimitChoice] = useState(10);
+  const effectiveLimit = listLimitChoice;
+  const costBearerToArabic: Record<string, string> = { company: 'الشركة', driver: 'السائق', vehicle: 'المركبة' };
+  const costBearerToApi: Record<string, string> = { 'الشركة': 'company', 'السائق': 'driver', 'المركبة': 'vehicle' };
+  const { data: maintenanceListData, meta: maintenanceMeta, isLoading: maintenanceLoading, error: maintenanceError, refetch: refetchMaintenance } = useMaintenanceList({
+    page: listPage,
+    limit: effectiveLimit,
+    vehiclePlateName: searchTerm.trim() || undefined,
+    maintainceType: filterType || undefined,
+    maintainceStatus: filterStatus || undefined,
+    maintanceCostBearer: filterCostOn ? costBearerToApi[filterCostOn] : undefined,
+  });
+  useEffect(() => {
+    setListPage(1);
+  }, [searchTerm, filterType, filterStatus, filterCostOn, effectiveLimit]);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [invoicePreview, setInvoicePreview] = useState<string>('');
@@ -32,8 +54,7 @@ export function Maintenance() {
     date: '',
     costOn: '',
     amount: '0.00',
-    driverId: '',
-    supervisorId: '',
+    supervisorName: '',
     description: '',
   });
   const [repairTypeSelections, setRepairTypeSelections] = useState<RepairTypeItem[]>([]);
@@ -55,18 +76,6 @@ export function Maintenance() {
     { value: 'vehicle', label: 'المركبة' },
     { value: 'driver', label: 'السائق' },
   ];
-  const driverOptions = [
-    { value: '1', label: 'محمد أحمد' },
-    { value: '2', label: 'خالد سعيد' },
-    { value: '3', label: 'عبدالله محمود' },
-  ];
-  const supervisorOptions = [
-    { value: '1', label: 'أحمد علي' },
-    { value: '2', label: 'خالد محمد' },
-    { value: '3', label: 'سعيد محمود' },
-  ];
-
-  // أنواع الإصلاح (من الصور، بدون تكرار)
   const repairTypeOptions: RepairTypeItem[] = [
     { id: 'temp-sensor', label: 'حساس الحرارة' },
     { id: 'oxygen-sensor', label: 'حساس الأوكسجين' },
@@ -145,68 +154,32 @@ export function Maintenance() {
     }
   }, [showRepairTypeField, repairTypeSelections, descriptionNotes]);
 
-  const maintenanceRecords = [
-    { 
-      id: 1, 
-      vehicle: 'ABC 1234',
-      vehicleModel: 'تويوتا كامري',
-      type: 'تغيير زيت', 
-      date: '2024-01-10',
-      time: '10:00 AM',
-      driver: 'محمد أحمد',
-      supervisor: 'أحمد علي',
-      costOn: 'الشركة', 
-      amount: 350,
-      status: 'مكتمل',
-      description: 'تغيير زيت المحرك والفلتر',
-      hasInvoice: true,
-    },
-    { 
-      id: 2, 
-      vehicle: 'XYZ 5678',
-      vehicleModel: 'هوندا أكورد',
-      type: 'إصلاح', 
-      date: '2024-01-12',
-      time: '02:30 PM',
-      driver: 'عبد الله سعيد',
-      supervisor: 'خالد محمد',
-      costOn: 'السائق', 
-      amount: 1200,
-      status: 'مكتمل',
-      description: 'إصلاح نظام التبريد',
-      hasInvoice: true,
-    },
-    { 
-      id: 3, 
-      vehicle: 'DEF 9012',
-      vehicleModel: 'نيسان التيما',
-      type: 'صيانة دورية', 
-      date: '2024-01-15',
-      time: '09:00 AM',
-      driver: 'سعيد محمود',
-      supervisor: 'أحمد علي',
-      costOn: 'الشركة', 
-      amount: 800,
-      status: 'قيد التنفيذ',
-      description: 'فحص شامل للمركبة',
-      hasInvoice: false,
-    },
-    { 
-      id: 4, 
-      vehicle: 'GHI 3456',
-      vehicleModel: 'فورد إكسبلورر',
-      type: 'إطارات', 
-      date: '2024-01-18',
-      time: '11:30 AM',
-      driver: 'أحمد عبدالله',
-      supervisor: 'محمد سعيد',
-      costOn: 'المركبة', 
-      amount: 2400,
-      status: 'مكتمل',
-      description: 'تغيير الإطارات الأربعة',
-      hasInvoice: true,
-    },
-  ];
+  function mapMaintenanceItemToRow(item: VehicleMaintainceItem) {
+    const vehicle = item.vehicleAuthorization?.vehicle;
+    const plateName = vehicle?.plateName ?? '—';
+    const vehicleModel = vehicle ? [vehicle.manufacturer, vehicle.model].filter(Boolean).join(' ') : '—';
+    const driver = item.vehicleAuthorization?.userDriver?.name ?? item.vehicleAuthorization?.driver?.name ?? '—';
+    const supervisor = item.maintanceSupervisor?.name ?? '—';
+    const amount = parseFloat(item.maintainceCost) || 0;
+    return {
+      id: item.id,
+      _raw: item,
+      vehicle: plateName,
+      vehicleModel,
+      type: MAINTENANCE_TYPE_LABELS[item.maintainceType] ?? item.maintainceType,
+      date: item.maintainceDate,
+      time: '',
+      driver,
+      supervisor,
+      costOn: costBearerToArabic[item.maintanceCostBearer] ?? item.maintanceCostBearer,
+      amount,
+      status: item.maintainceStatus,
+      description: item.maintainceNote || item.maintanceParts || '—',
+      hasInvoice: !!item.maintainceImage,
+    };
+  }
+  const maintenanceRecords = useMemo(() => maintenanceListData.map(mapMaintenanceItemToRow), [maintenanceListData]);
+  const filteredRecords = maintenanceRecords;
 
   const commonTypes = [
     { label: 'تغيير زيت', count: 45, color: 'bg-[#09b9b5]', percent: 29 },
@@ -227,28 +200,12 @@ export function Maintenance() {
   ];
   const maxAmount = Math.max(...monthlyData.map(m => m.amount));
 
-  // Filter maintenance records
-  const filteredRecords = useMemo(() => {
-    return maintenanceRecords.filter(record => {
-      const matchesSearch = 
-        record.vehicle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        record.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        record.driver.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesType = filterType === '' || record.type === filterType;
-      const matchesStatus = filterStatus === '' || statusToArabic(record.status) === filterStatus;
-      const matchesCostOn = filterCostOn === '' || record.costOn === filterCostOn;
-      
-      return matchesSearch && matchesType && matchesStatus && matchesCostOn;
-    });
-  }, [searchTerm, filterType, filterStatus, filterCostOn]);
-
-  // Statistics
+  // Statistics من بيانات الـ API
   const stats = {
     driverCost: maintenanceRecords.filter(r => r.costOn === 'السائق').reduce((sum, r) => sum + r.amount, 0),
     companyCost: maintenanceRecords.filter(r => r.costOn === 'الشركة').reduce((sum, r) => sum + r.amount, 0),
-    inProgress: maintenanceRecords.filter(r => r.status === 'قيد التنفيذ').length,
-    total: maintenanceRecords.length,
+    inProgress: maintenanceRecords.filter(r => r.status === 'in_progress').length,
+    total: maintenanceMeta?.total ?? maintenanceRecords.length,
     vehicleCost: maintenanceRecords.filter(r => r.costOn === 'المركبة').reduce((sum, r) => sum + r.amount, 0),
   };
 
@@ -422,7 +379,7 @@ export function Maintenance() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900">الصيانة</h1>
-              <p className="text-sm text-[#617c96]">إدارة سجلات صيانة المركبات - {maintenanceRecords.length} سجل</p>
+              <p className="text-sm text-[#617c96]">إدارة سجلات صيانة المركبات - {maintenanceMeta?.total ?? maintenanceRecords.length} سجل</p>
             </div>
           </div>
         </div>
@@ -624,10 +581,10 @@ export function Maintenance() {
                   className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
                 >
                   <option value="">الكل</option>
-                  <option value="تغيير زيت">تغيير زيت</option>
-                  <option value="صيانة دورية">صيانة دورية</option>
-                  <option value="إصلاح">إصلاح</option>
-                  <option value="إطارات">إطارات</option>
+                  <option value="oil">تغيير زيت</option>
+                  <option value="periodic">صيانة دورية</option>
+                  <option value="repair">إصلاح</option>
+                  <option value="accident">حادث مروري</option>
                 </select>
               </div>
               
@@ -640,7 +597,7 @@ export function Maintenance() {
                 >
                   <option value="">الكل</option>
                   {Object.entries(MAINTENANCE_STATUS_LABELS).map(([val, label]) => (
-                    <option key={val} value={label}>{label}</option>
+                    <option key={val} value={val}>{label}</option>
                   ))}
                 </select>
               </div>
@@ -772,17 +729,66 @@ export function Maintenance() {
       </div>
 
       {/* Table/Grid View */}
+      {maintenanceError && (
+        <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-4 py-3 rounded-lg border border-red-200">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>{maintenanceError}</span>
+        </div>
+      )}
       {viewMode === 'table' ? (
         <Card>
-          <Table 
-            columns={columns} 
-            data={filteredRecords} 
-            onRowClick={(row) => setSelectedMaintenance(row)} 
-          />
+          {maintenanceLoading ? (
+            <div className="flex items-center justify-center gap-2 py-12 text-gray-500">
+              <div className="w-6 h-6 border-2 border-[#09b9b5] border-t-transparent rounded-full animate-spin" />
+              <span>جاري تحميل سجلات الصيانة...</span>
+            </div>
+          ) : (
+            <>
+              <Table 
+                columns={columns} 
+                data={filteredRecords} 
+                onRowClick={(row) => setSelectedMaintenance(row)} 
+              />
+              {maintenanceMeta && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-gray-200 bg-gray-50/50">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-sm text-gray-600">
+                      صفحة {maintenanceMeta.page} من {maintenanceMeta.totalPages} — إجمالي {maintenanceMeta.total} سجل
+                    </span>
+                    <label className="flex items-center gap-2 text-sm text-gray-600">
+                      <span>عرض</span>
+                      <select
+                        value={listLimitChoice}
+                        onChange={(e) => setListLimitChoice(Number(e.target.value))}
+                        className="p-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#09b9b5] text-sm"
+                      >
+                        <option value={10}>10</option>
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                      </select>
+                      <span>في الصفحة</span>
+                    </label>
+                  </div>
+                  <Pagination
+                    page={maintenanceMeta.page}
+                    totalPages={maintenanceMeta.totalPages}
+                    onPageChange={setListPage}
+                    hideIfSinglePage={false}
+                  />
+                </div>
+              )}
+            </>
+          )}
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredRecords.map((record, index) => (
+          {maintenanceLoading ? (
+            <div className="col-span-full flex items-center justify-center gap-2 py-12 text-gray-500">
+              <div className="w-6 h-6 border-2 border-[#09b9b5] border-t-transparent rounded-full animate-spin" />
+              <span>جاري تحميل سجلات الصيانة...</span>
+            </div>
+          ) : (
+            filteredRecords.map((record, index) => (
             <Card 
               key={record.id}
               className="group cursor-pointer hover:shadow-lg transition-all duration-300 border-t-4 border-[#09b9b5] overflow-hidden"
@@ -873,7 +879,35 @@ export function Maintenance() {
                 </button>
               </div>
             </Card>
-          ))}
+          )))}
+          {maintenanceMeta && (
+            <div className="col-span-full flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 mt-4 border-t border-gray-200 bg-gray-50/50 rounded-b-xl">
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-sm text-gray-600">
+                  صفحة {maintenanceMeta.page} من {maintenanceMeta.totalPages} — إجمالي {maintenanceMeta.total} سجل
+                </span>
+                <label className="flex items-center gap-2 text-sm text-gray-600">
+                  <span>عرض</span>
+                  <select
+                    value={listLimitChoice}
+                    onChange={(e) => setListLimitChoice(Number(e.target.value))}
+                    className="p-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#09b9b5] text-sm"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                  </select>
+                  <span>في الصفحة</span>
+                </label>
+              </div>
+              <Pagination
+                page={maintenanceMeta.page}
+                totalPages={maintenanceMeta.totalPages}
+                onPageChange={setListPage}
+                hideIfSinglePage={false}
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -929,7 +963,7 @@ export function Maintenance() {
                 <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100/50 rounded-xl border border-green-100">
                   <Clock className="w-6 h-6 text-green-600 mx-auto mb-2" />
                   <p className="text-xs text-gray-600 mb-1">الوقت</p>
-                  <p className="text-sm font-bold text-gray-900">{selectedMaintenance.time}</p>
+                  <p className="text-sm font-bold text-gray-900">{selectedMaintenance.time || '—'}</p>
                 </div>
 
                 <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl border border-purple-100">
@@ -1025,10 +1059,54 @@ export function Maintenance() {
             </div>
 
             <form 
-              onSubmit={(e) => { 
+              onSubmit={async (e) => { 
                 e.preventDefault(); 
                 if (!formData.vehicleId || !formData.type || !formData.date || !formData.costOn || !formData.amount || !formData.description) return;
-                setShowModal(false); 
+                const vehicleAuthorizationId = lastAuth.data?.id;
+                if (!vehicleAuthorizationId) {
+                  showError('بيانات التفويض غير متوفرة', 'اختر مركبة وتحقق من ظهور بيانات المركبة والسائق ثم أعد المحاولة.');
+                  return;
+                }
+                const loadingId = showLoading('جاري حفظ الصيانة...', '');
+                try {
+                  const res = await createVehicleMaintaince({
+                    vehicleId: formData.vehicleId || null,
+                    vehicleAuthorizationId,
+                    maintainceDate: formData.date,
+                    maintainceType: formData.type,
+                    maintainceStatus: 'pending',
+                    maintanceCostBearer: formData.costOn,
+                    maintanceParts: repairTypeSelections.length > 0 ? repairTypeSelections.map((s) => s.label).join('، ') : formData.description,
+                    maintainceNote: formData.description,
+                    maintainceSupervisorName: formData.supervisorName || '—',
+                    maintainceCost: Number(formData.amount) || 0,
+                  });
+                  if (res.success) {
+                    showSuccess('تم حفظ الصيانة', res.message || 'تم إنشاء سجل الصيانة بنجاح');
+                    refetchMaintenance();
+                    setShowModal(false);
+                    setFormData({ vehicleId: '', type: '', date: '', costOn: '', amount: '0.00', supervisorName: '', description: '' });
+                    setRepairTypeSelections([]);
+                    setRepairTypeImages({});
+                    setDescriptionNotes('');
+                    setInvoiceFile(null);
+                    setInvoicePreview('');
+                  } else {
+                    showError('فشل حفظ الصيانة', (res as { message?: string }).message || 'حدث خطأ');
+                  }
+                } catch (err: unknown) {
+                  const ax = err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } };
+                  const msg = ax.response?.data?.message;
+                  const errors = ax.response?.data?.errors;
+                  const details = errors
+                    ? Object.entries(errors)
+                        .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+                        .join(' — ')
+                    : (err instanceof Error ? err.message : 'حدث خطأ أثناء الإرسال');
+                  showError('فشل حفظ الصيانة', msg ? `${msg} — ${details}` : details);
+                } finally {
+                  removeNotification(loadingId);
+                }
               }} 
               className="p-6 space-y-5"
             >
@@ -1049,13 +1127,6 @@ export function Maintenance() {
                       value={formData.vehicleId}
                       onChange={(val) => setFormData({ ...formData, vehicleId: val })}
                     />
-                    <div className="mt-2">
-                      <VehicleDriverSummary
-                        data={lastAuth.data}
-                        isLoading={lastAuth.isLoading}
-                        error={lastAuth.error}
-                      />
-                    </div>
                   </div>
 
                   <div>
@@ -1080,6 +1151,17 @@ export function Maintenance() {
                       }}
                     />
                   </div>
+
+                  {formData.vehicleId && (
+                    <div className="md:col-span-2 w-full min-w-0">
+                      <VehicleDriverSummary
+                        data={lastAuth.data}
+                        isLoading={lastAuth.isLoading}
+                        error={lastAuth.error}
+                        className="w-full"
+                      />
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1110,6 +1192,19 @@ export function Maintenance() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
+                      المشرف المستلم
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.supervisorName}
+                      onChange={(e) => setFormData({ ...formData, supervisorName: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]"
+                      placeholder="اسم المشرف"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       المبلغ (ريال) <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
@@ -1127,25 +1222,6 @@ export function Maintenance() {
                     </div>
                   </div>
 
-                  <div>
-                    <SearchableSelect
-                      label="السائق المفوض"
-                      placeholder="اختر السائق"
-                      options={driverOptions}
-                      value={formData.driverId}
-                      onChange={(val) => setFormData({ ...formData, driverId: val })}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <SearchableSelect
-                    label="المشرف المستلم"
-                    placeholder="اختر المشرف"
-                    options={supervisorOptions}
-                    value={formData.supervisorId}
-                    onChange={(val) => setFormData({ ...formData, supervisorId: val })}
-                  />
                 </div>
               </div>
 

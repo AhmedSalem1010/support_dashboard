@@ -54,12 +54,13 @@ export function VehicleDriverSummary({
 
   return (
     <div
-      className={`rounded-lg border border-gray-200 bg-white p-4 shadow-sm ${className}`}
+      className={`w-full rounded-lg border border-gray-200 bg-white p-4 shadow-sm ${className}`}
       aria-label={title}
+      style={{ minWidth: 0 }}
     >
       <h4 className="mb-3 text-sm font-semibold text-gray-700">{title}</h4>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="flex gap-2 rounded-md bg-gray-50 p-3">
+      <div className="grid w-full min-w-0 gap-3 sm:grid-cols-2">
+        <div className="flex min-w-0 gap-2 rounded-md bg-gray-50 p-3">
           <Car className="h-5 w-5 flex-shrink-0 text-gray-500" />
           <div className="min-w-0">
             <p className="text-xs text-gray-500">المركبة</p>
@@ -75,7 +76,7 @@ export function VehicleDriverSummary({
             )}
           </div>
         </div>
-        <div className="flex gap-2 rounded-md bg-gray-50 p-3">
+        <div className="flex min-w-0 gap-2 rounded-md bg-gray-50 p-3">
           <User className="h-5 w-5 flex-shrink-0 text-gray-500" />
           <div className="min-w-0">
             <p className="text-xs text-gray-500">السائق</p>
