@@ -120,9 +120,9 @@ export function SearchableSelect({
             {filteredOptions.length === 0 ? (
               <p className="px-3 py-4 text-center text-sm text-gray-500">لا توجد نتائج</p>
             ) : (
-              filteredOptions.map((opt) => (
+              filteredOptions.map((opt, index) => (
                 <button
-                  key={opt.value}
+                  key={`${opt.value}-${index}`}
                   type="button"
                   onClick={() => handleSelect(opt.value)}
                   className={`

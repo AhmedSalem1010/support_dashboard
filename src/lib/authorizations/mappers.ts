@@ -15,17 +15,8 @@ function formatDate(iso: string): string {
 }
 
 function getStatus(api: AuthorizationApiItem): string {
-  const end = new Date(api.authorizationEndDate).getTime();
-  const today = new Date().setHours(0, 0, 0, 0);
-  const daysLeft = Math.ceil((end - today) / (1000 * 60 * 60 * 24));
-
-  if (api.authorizationStatus === 'cancelled') return 'ملغي';
-  if (api.authorizationStatus === 'active') {
-    if (daysLeft < 0) return 'منتهي';
-    if (daysLeft <= 30) return 'قريب الانتهاء';
-    return 'ساري';
-  }
-  return api.authorizationStatus === 'expired' ? 'منتهي' : 'ساري';
+  // استخدام الحالة القادمة من قاعدة البيانات مباشرة
+  return api.authorizationStatus || 'active';
 }
 
 export interface AuthorizationDisplay {
@@ -52,13 +43,28 @@ export function mapAuthorizationFromApi(api: AuthorizationApiItem): Authorizatio
   const today = new Date();
   const daysRemaining = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
+  // تحديد اسم السائق بناءً على الشروط
+  // استخدام driver أو userDriver
+  let driverName = api.driver?.name ?? api.userDriver?.name ?? '—';
+  
+  // إذا كان السائق فارغ ونوع التفويض محلي فقط و vehicleAuthorizationTammResponseXConversition فارغ
+  const isDriverEmpty = !api.driver || !api.driver.name;
+  const isUserDriverEmpty = !api.userDriver?.name;
+  const isLocalOnly = api.authorizationType === 'local_only';
+  const isTammResponseEmpty = !api.vehicleAuthorizationTammResponseXConversition;
+  
+  // إذا كان كلا السائقين فارغين ونوع التفويض محلي فقط
+  if (isDriverEmpty && isUserDriverEmpty && isLocalOnly && isTammResponseEmpty) {
+    driverName = 'الشركة';
+  }
+
   return {
     id: api.id,
     authNumber: api.tammAuthorizedId || api.id.slice(0, 8),
     vehicle: api.vehicle?.plateName ?? '—',
     vehicleModel: api.vehicle?.vehicleType ?? '—',
     vehicleId: api.vehicleId,
-    driver: api.driver?.name ?? '—',
+    driver: driverName,
     supervisor: (api.supervisor as any)?.name ?? '—',
     startDate: formatDate(api.authorizationStartDate),
     endDate: formatDate(api.authorizationEndDate),

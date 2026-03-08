@@ -1,23 +1,22 @@
 'use client';
 
 import { useState, useRef, useEffect, type FormEvent } from "react";
-import { useVehiclesList } from "@/hooks/useVehiclesList";
-import { useLastAuthorizationData } from "@/hooks/useLastAuthorizationData";
-import { useVehicleEquipmentInfo } from "@/hooks/useVehicleEquipmentInfo";
-import { createVehicleEquipmentInventory, getVehicleInfoRequestInfo } from "@/lib/api/equipment";
+import { useVehiclesList } from '@/hooks/useVehiclesList';
+import { useLastAuthorizationData } from '@/hooks/useLastAuthorizationData';
+import { useVehicleEquipmentInfo } from '@/hooks/useVehicleEquipmentInfo';
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { useNotificationsContext } from "@/components/ui/Notifications";
 import type { CreateVehicleEquipmentInventoryItemDto, CreateVehicleEquipmentInventoryDto } from "@/types/equipment";
-import { VehicleEquipmentInfoDialog } from "@/components/ui/VehicleEquipmentInfoDialog";
 import { Portal } from "@/components/ui/Portal";
+import { EquipmentInventoryGrid, type EquipmentKey, EQUIPMENT_LABELS } from "@/components/ui/EquipmentInventoryGrid";
+import VehicleDriverInfoCard from '@/components/ui/VehicleDriverInfoCard';
+import { createVehicleEquipmentInventory, uploadEquipmentInventoryImages } from '@/lib/api/equipment';
 
 // --- Types ---
 interface EquipmentInventoryModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
-type EquipmentKey = "blicher" | "bakium" | "ladderBig" | "ladderSmall" | "leMay" | "leBakium" | "leShoft" | "noselShaft" | "noselMay" | "noselKabir";
 
 /** ربط أسماء المعدات من API (vehicle-info) بمفاتيح الجرد - مع وبدون "ال" */
 const VEHICLE_INFO_ITEM_NAME_TO_KEY: Record<string, EquipmentKey> = {
@@ -64,18 +63,6 @@ const RecordIcon = () => (
 );
 const StopIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-);
-const BoxIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="#14b8a6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="28" height="28"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-);
-const PlusIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-);
-const MinusIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="16" height="16"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-);
-const InventoryIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="#14b8a6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="24" height="24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
 );
 
 // --- Video Recorder Component ---
@@ -203,7 +190,6 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
   const lastAuth = useLastAuthorizationData(selectedPlateName);
   const { data: vehicleEquipmentData, isLoading: vehicleEquipmentLoading, error: vehicleEquipmentError } = useVehicleEquipmentInfo(selectedPlateName);
   const selectedVehicleData = selectedVehicle ? vehicles.find((v) => v.id === selectedVehicle) : null;
-  const [showVehicleInfoDialog, setShowVehicleInfoDialog] = useState(false);
   const { success: showSuccess, error: showError } = useNotificationsContext();
 
   /** معرف المشرف من بيانات آخر تفويض (مطلوب للإرسال) */
@@ -216,14 +202,22 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
   /** عدد الفريق من نفس اند بوينت بيانات المركبة والسائق (last-authorization-data) */
   const teamWorkerCount = lastAuth.data?.teamWorkerCount ?? lastAuth.data?.workersCount ?? 0;
 
-  const equipmentLabels: Record<EquipmentKey, string> = {
-    blicher: "البليشر", bakium: "الباكيوم", ladderBig: "السلم الكبير",
-    ladderSmall: "السلم الصغير", leMay: "لي الماء", leBakium: "لي الباكيوم",
-    leShoft: "لي الشفط", noselShaft: "نوسل شفط", noselMay: "نوسل ماء", noselKabir: "نوسل كبير",
-  };
+  // تحديد اسم السائق: من driverName المباشر أو driver object أو userDriver
+  const driverDisplayName = lastAuth.data?.driverName || lastAuth.data?.driver?.name || lastAuth.data?.userDriver?.name;
+  const driverJisrId = lastAuth.data?.driverJisrId || (lastAuth.data?.driver && 'jisrId' in lastAuth.data.driver ? lastAuth.data.driver.jisrId : null);
 
-  const incrementItem = (key: EquipmentKey) => setEquipment(p => ({ ...p, [key]: p[key] + 1 }));
-  const decrementItem = (key: EquipmentKey) => setEquipment(p => ({ ...p, [key]: Math.max(0, p[key] - 1) }));
+  // تتبع بيانات السائق للتأكد من وجودها
+  useEffect(() => {
+    if (selectedPlateName && lastAuth.data) {
+      console.log('📊 بيانات التفويض الأخير:', lastAuth.data);
+      console.log('👤 اسم السائق (driverName):', lastAuth.data.driverName);
+      console.log('👤 رقم جسر السائق (driverJisrId):', lastAuth.data.driverJisrId);
+      console.log('👤 بيانات السائق (driver):', lastAuth.data.driver);
+      console.log('👤 بيانات السائق المستخدم (userDriver):', lastAuth.data.userDriver);
+      console.log('✅ اسم السائق المعروض:', driverDisplayName);
+      console.log('🚗 بيانات المركبة:', lastAuth.data.vehicle);
+    }
+  }, [selectedPlateName, lastAuth.data, driverDisplayName]);
 
   useEffect(() => {
     if (!selectedPlateName) {
@@ -233,30 +227,46 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
       });
       return;
     }
-    if (!vehicleEquipmentData || vehicleEquipmentData.length === 0) return;
+    
+    // تصفير المعدات دائماً عند تغيير المركبة
     const defaults: Record<EquipmentKey, number> = {
       blicher: 0, bakium: 0, ladderBig: 0, ladderSmall: 0, leMay: 0, leBakium: 0,
       leShoft: 0, noselShaft: 0, noselMay: 0, noselKabir: 0,
     };
-    vehicleEquipmentData.forEach((item) => {
-      const key = getEquipmentKeyFromItemName(item.itemName);
-      if (key != null && typeof item.itemCount === "number" && item.itemCount >= 0) {
-        defaults[key] = item.itemCount;
-      }
-    });
+    
+    // إذا كانت هناك بيانات جرد، نملأها
+    if (vehicleEquipmentData && vehicleEquipmentData.length > 0) {
+      vehicleEquipmentData.forEach((item) => {
+        const key = getEquipmentKeyFromItemName(item.itemName);
+        if (key != null && typeof item.itemCount === "number" && item.itemCount >= 0) {
+          defaults[key] = item.itemCount;
+        }
+      });
+    }
+    
     setEquipment(defaults);
   }, [vehicleEquipmentData, selectedPlateName]);
-
-  useEffect(() => {
-    if (!selectedPlateName) setShowVehicleInfoDialog(false);
-    else setShowVehicleInfoDialog(true);
-  }, [selectedPlateName]);
 
   /** vehicleAuthorizationId من نفس اند بوينت بيانات المركبة والسائق (last-authorization-data) */
   useEffect(() => {
     if (lastAuth.data?.id) setVehicleAuthorizationId(lastAuth.data.id);
     else setVehicleAuthorizationId(null);
   }, [lastAuth.data?.id, selectedPlateName]);
+
+  /** تنبيهات عند تغيير المركبة */
+  useEffect(() => {
+    if (!selectedPlateName) return;
+    
+    // تنبيه: لا يوجد جرد للمركبة
+    if (!vehicleEquipmentLoading && (!vehicleEquipmentData || vehicleEquipmentData.length === 0)) {
+      showError('لا يوجد جرد معدات', `لا توجد بيانات جرد معدات للمركبة ${selectedPlateName}`);
+    }
+    
+    // تنبيه: حالة التفويض ملغي
+    if (!lastAuth.isLoading && lastAuth.data?.authorizationStatus === 'cancelled') {
+      showError('تفويض ملغي', `التفويض الأخير للمركبة ${selectedPlateName} في حالة ملغي`);
+    }
+  }, [selectedPlateName, vehicleEquipmentData, vehicleEquipmentLoading, lastAuth.data?.authorizationStatus, lastAuth.isLoading]);
 
   useEffect(() => {
     const name = lastAuth.data?.supervisor && typeof lastAuth.data.supervisor === "object" && "name" in lastAuth.data.supervisor
@@ -273,7 +283,7 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
   const buildPayload = (): CreateVehicleEquipmentInventoryDto => {
     const items: CreateVehicleEquipmentInventoryItemDto[] = (Object.entries(equipment) as [EquipmentKey, number][]).map(
       ([key, itemCount]) => ({
-        itemName: equipmentLabels[key],
+        itemName: EQUIPMENT_LABELS[key],
         itemCount,
         itemStatus: "usable",
         itemInventoryStatus: "ok",
@@ -378,95 +388,57 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
               />
 
               {selectedVehicle && (
-                <div style={{ marginTop: 16, width: "100%" }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 12 }}>بيانات المركبة والسائق</p>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, width: "100%", minWidth: 0 }}>
-                    <div style={{ background: "#f3f4f6", borderRadius: 12, padding: 14, border: "1px solid #e5e7eb", minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                        <CarIcon />
-                        <span style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>المركبة</span>
-                      </div>
-                      {selectedVehicleData ? (
-                        <>
-                          <p style={{ fontSize: 14, fontWeight: 600, color: "#1f2937", margin: "0 0 4px" }}>{selectedVehicleData.plateName || selectedVehicleData.plateNumber}</p>
-                          <p style={{ fontSize: 13, color: "#6b7280", margin: "0 0 4px" }}>{selectedVehicleData.manufacturer} {selectedVehicleData.model} - {selectedVehicleData.year}</p>
-                          <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>{selectedVehicleData.vehicleType || "—"}</p>
-                        </>
-                      ) : (
-                        <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>—</p>
-                      )}
-                    </div>
-                    <div style={{ background: "#f3f4f6", borderRadius: 12, padding: 14, border: "1px solid #e5e7eb", minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                        <UserIcon />
-                        <span style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>السائق</span>
-                      </div>
-                      {lastAuth.isLoading ? (
-                        <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>جاري التحميل...</p>
-                      ) : (
-                        <p style={{ fontSize: 14, fontWeight: 600, color: "#1f2937", margin: 0 }}>{lastAuth.data?.driver?.name ?? "—"}</p>
-                      )}
-                    </div>
+                <VehicleDriverInfoCard
+                  vehicleData={selectedVehicleData}
+                  lastAuthData={lastAuth.data}
+                  isLoading={lastAuth.isLoading}
+                />
+              )}
+
+              {/* تحذير إذا كانت السيارة غير مفوضة */}
+              {selectedVehicle && lastAuth.data && lastAuth.data.authorizationStatus !== 'authorized' && (
+                <div style={{ background: "linear-gradient(135deg, #fef2f2, #fee2e2)", border: "2px solid #fca5a5", borderRadius: 16, padding: 20, marginTop: 16 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+                    <div style={{ width: 40, height: 40, background: "#dc2626", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: 20, fontWeight: 800 }}>⚠️</div>
+                    <h3 style={{ fontSize: 16, fontWeight: 800, color: "#991b1b", margin: 0 }}>السيارة غير مفوضة</h3>
                   </div>
+                  <p style={{ fontSize: 14, color: "#7f1d1d", margin: 0, lineHeight: 1.6 }}>لا يمكن إجراء الجرد على هذه السيارة لأنها غير مفوضة حالياً. يرجى التأكد من حالة التفويض أولاً.</p>
                 </div>
+              )}
+
+              {/* تحذير إذا لم تتحقق شروط عدد العمال واسم الفريق */}
+              {selectedVehicle && lastAuth.data && lastAuth.data.authorizationStatus === 'authorized' && selectedVehicleData && (
+                ((selectedVehicleData.workerCount ?? 0) === 0 || !selectedVehicleData.teamName?.includes('CL')) && (
+                  <div style={{ background: "linear-gradient(135deg, #fef2f2, #fee2e2)", border: "2px solid #fca5a5", borderRadius: 16, padding: 20, marginTop: 16 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+                      <div style={{ width: 40, height: 40, background: "#dc2626", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: 20, fontWeight: 800 }}>⚠️</div>
+                      <h3 style={{ fontSize: 16, fontWeight: 800, color: "#991b1b", margin: 0 }}>لا يمكن إجراء الجرد</h3>
+                    </div>
+                    <p style={{ fontSize: 14, color: "#7f1d1d", margin: 0, lineHeight: 1.6 }}>
+                      {(selectedVehicleData.workerCount ?? 0) === 0 && !selectedVehicleData.teamName?.includes('CL') 
+                        ? 'لا يمكن إجراء الجرد على هذه السيارة لأنه لا يوجد عمال (عدد العمال = 0) واسم الفريق لا يحتوي على "CL". يرجى التأكد من حالة التفويض أولاً.'
+                        : (selectedVehicleData.workerCount ?? 0) === 0 
+                        ? 'لا يمكن إجراء الجرد على هذه السيارة لأنه لا يوجد عمال (عدد العمال = 0). يرجى التأكد من تعيين العمال للمركبة أولاً.'
+                        : 'لا يمكن إجراء الجرد على هذه السيارة لأن اسم الفريق لا يحتوي على "CL". يرجى التأكد من اسم الفريق أولاً.'
+                      }
+                    </p>
+                  </div>
+                )
               )}
             </div>
 
-            {/* Equipment Inventory - Card Style */}
-            <div style={{ background: "white", borderRadius: 16, padding: 22, border: "1px solid #e5e7eb" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 20 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <InventoryIcon />
-                  <h3 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>جرد العهدة</h3>
-                </div>
-                {selectedPlateName && vehicleEquipmentLoading && (
-                  <span style={{ fontSize: 12, color: "#0d9488", fontWeight: 600 }}>جاري تحميل المعدات...</span>
-                )}
-                {selectedPlateName && vehicleEquipmentError && (
-                  <span style={{ fontSize: 12, color: "#dc2626", fontWeight: 600 }}>{vehicleEquipmentError}</span>
-                )}
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-                {(Object.entries(equipment) as [EquipmentKey, number][]).map(([key, count]) => {
-                  const isActive = count > 0;
-                  return (
-                    <div key={key}
-                      style={{
-                        background: isActive ? "#f0fdfa" : "#f8fafc",
-                        border: `1.5px solid ${isActive ? "#14b8a6" : "#e2e8f0"}`,
-                        borderRadius: 12,
-                        padding: "16px 12px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        transition: "all 0.2s",
-                      }}>
-                      <div style={{ flexShrink: 0 }}><BoxIcon /></div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", marginBottom: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{equipmentLabels[key]}</div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <button type="button" onClick={() => decrementItem(key)}
-                            style={{ width: 28, height: 28, borderRadius: 6, border: "1.5px solid #e2e8f0", background: "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#94a3b8", transition: "all 0.15s" }}
-                            onMouseEnter={e => { e.currentTarget.style.borderColor = "#14b8a6"; e.currentTarget.style.color = "#14b8a6"; }}
-                            onMouseLeave={e => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.color = "#94a3b8"; }}>
-                            <MinusIcon />
-                          </button>
-                          <span style={{ fontSize: 18, fontWeight: 800, color: isActive ? "#0f766e" : "#64748b", minWidth: 28, textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{count}</span>
-                          <button type="button" onClick={() => incrementItem(key)}
-                            style={{ width: 28, height: 28, borderRadius: 6, border: "1.5px solid #e2e8f0", background: "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#94a3b8", transition: "all 0.15s" }}
-                            onMouseEnter={e => { e.currentTarget.style.borderColor = "#14b8a6"; e.currentTarget.style.color = "#14b8a6"; }}
-                            onMouseLeave={e => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.color = "#94a3b8"; }}>
-                            <PlusIcon />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            {/* Equipment Inventory - استخدام المكون المشترك */}
+            {selectedVehicle && lastAuth.data && lastAuth.data.authorizationStatus === 'authorized' && selectedVehicleData && (selectedVehicleData.workerCount ?? 0) > 0 && selectedVehicleData.teamName?.includes('CL') && (
+            <EquipmentInventoryGrid
+              equipment={equipment}
+              onChange={setEquipment}
+              isLoading={vehicleEquipmentLoading}
+              error={vehicleEquipmentError}
+            />
+            )}
 
             {/* Video Recording Section */}
+            {selectedVehicle && lastAuth.data && lastAuth.data.authorizationStatus === 'authorized' && selectedVehicleData && (selectedVehicleData.workerCount ?? 0) > 0 && selectedVehicleData.teamName?.includes('CL') && (
             <div style={{ background: "white", borderRadius: 16, padding: 22, border: "1px solid #e5e7eb" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
                 <div style={{ width: 8, height: 28, background: "linear-gradient(180deg, #8b5cf6, #a78bfa)", borderRadius: 99 }} />
@@ -478,8 +450,10 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
                 <VideoRecorder label="فيديو المعدات" color="#f59e0b" onRecorded={(f) => setEquipmentVideoFile(f)} />
               </div>
             </div>
+            )}
 
             {/* Additional Info */}
+            {selectedVehicle && lastAuth.data && lastAuth.data.authorizationStatus === 'authorized' && selectedVehicleData && (selectedVehicleData.workerCount ?? 0) > 0 && selectedVehicleData.teamName?.includes('CL') && (
             <div style={{ background: "#f9fafb", borderRadius: 16, padding: 22, border: "1px solid #e5e7eb" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
                 <div style={{ width: 8, height: 28, background: "linear-gradient(180deg, #3b82f6, #60a5fa)", borderRadius: 99 }} />
@@ -502,8 +476,10 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
                 </div>
               </div>
             </div>
+            )}
 
             {/* Actions */}
+            {selectedVehicle && lastAuth.data && lastAuth.data.authorizationStatus === 'authorized' && selectedVehicleData && (selectedVehicleData.workerCount ?? 0) > 0 && selectedVehicleData.teamName?.includes('CL') && (
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, paddingTop: 8 }}>
               <button type="button" onClick={onClose}
                 style={{ padding: "10px 24px", borderRadius: 10, border: "1.5px solid #e5e7eb", fontSize: 14, fontWeight: 700, color: "#6b7280", fontFamily: "inherit", background: "white", cursor: "pointer" }}>
@@ -515,6 +491,7 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
                 حفظ الجرد
               </button>
             </div>
+            )}
           </form>
         </div>
 
@@ -558,16 +535,6 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
         </div>
       </div>
     )}
-
-    <VehicleEquipmentInfoDialog
-      isOpen={showVehicleInfoDialog}
-      onClose={() => setShowVehicleInfoDialog(false)}
-      vehiclePlateName={selectedPlateName}
-      requestInfo={selectedPlateName ? getVehicleInfoRequestInfo(selectedPlateName) : null}
-      data={vehicleEquipmentData}
-      isLoading={vehicleEquipmentLoading}
-      error={vehicleEquipmentError}
-    />
     </Portal>
   );
 }

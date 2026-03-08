@@ -50,7 +50,15 @@ export function VehicleDriverSummary({
     return null;
   }
 
-  const { vehicle, driver } = data;
+  const { vehicle, driver, userDriver, driverName: directDriverName } = data;
+
+  // حماية من vehicle غير معرف
+  if (!vehicle) {
+    return null;
+  }
+
+  // استخدام driverName المباشر أو driver أو userDriver
+  const driverDisplayName = directDriverName || driver?.name || userDriver?.name;
 
   return (
     <div
@@ -64,14 +72,14 @@ export function VehicleDriverSummary({
           <Car className="h-5 w-5 flex-shrink-0 text-gray-500" />
           <div className="min-w-0">
             <p className="text-xs text-gray-500">المركبة</p>
-            <p className="font-medium text-gray-900">{vehicle.plateName || vehicle.plateNumber || '—'}</p>
-            {(vehicle.manufacturer || vehicle.model) && (
+            <p className="font-medium text-gray-900">{vehicle?.plateName || vehicle?.plateNumber || '—'}</p>
+            {(vehicle?.manufacturer || vehicle?.model) && (
               <p className="text-sm text-gray-600">
-                {[vehicle.manufacturer, vehicle.model].filter(Boolean).join(' ')}
-                {vehicle.year ? ` - ${vehicle.year}` : ''}
+                {[vehicle?.manufacturer, vehicle?.model].filter(Boolean).join(' ')}
+                {vehicle?.year ? ` - ${vehicle.year}` : ''}
               </p>
             )}
-            {vehicle.vehicleType && (
+            {vehicle?.vehicleType && (
               <p className="text-xs text-gray-500">{vehicle.vehicleType}</p>
             )}
           </div>
@@ -80,7 +88,7 @@ export function VehicleDriverSummary({
           <User className="h-5 w-5 flex-shrink-0 text-gray-500" />
           <div className="min-w-0">
             <p className="text-xs text-gray-500">السائق</p>
-            <p className="font-medium text-gray-900">{driver?.name ?? '—'}</p>
+            <p className="font-medium text-gray-900">{driverDisplayName ?? '—'}</p>
             {driver?.employeeData?.personalReceived && (
               <p className="text-sm text-gray-600">{driver.employeeData.personalReceived}</p>
             )}

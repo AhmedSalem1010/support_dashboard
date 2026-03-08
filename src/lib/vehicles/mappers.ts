@@ -32,6 +32,8 @@ export interface VehicleDisplay {
   chassisNumber: string;
   vehicleType: string;
   istimarahStatus: string;
+  workerCount?: number;
+  teamName?: string;
 }
 
 export function mapVehicleFromApi(vehicle: VehicleApiResponse): VehicleDisplay {
@@ -78,5 +80,7 @@ export function mapVehicleFromApi(vehicle: VehicleApiResponse): VehicleDisplay {
     istimarahStatus: vehicle.istimarahStatus
       ? (ISTIMARAH_STATUS_LABELS[vehicle.istimarahStatus] ?? statusToArabic(vehicle.istimarahStatus))
       : '—',
+    workerCount: (vehicle as any).workerCount,
+    teamName: (vehicle as any).teamName,
   };
 }

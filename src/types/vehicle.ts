@@ -54,3 +54,34 @@ export interface VehiclesFetchParams {
   istimarahStatus?: string;
   inspectionStatus?: string;
 }
+
+export interface VehicleTools {
+  vehicleId: string;
+  plateName: string;
+  wheelWrenchNumber: number;
+  spareTireNumber: number;
+  tireJackNumber: number;
+}
+
+export interface VehicleToolsApiResponse {
+  data: VehicleTools | null;
+  error: any;
+  success: boolean;
+  message: string;
+  status: number;
+}
+
+export interface UpdateVehicleToolsDto {
+  vehicleId: string;
+  wheelWrenchNumber: number;
+  spareTireNumber: number;
+  tireJackNumber: number;
+}
+
+export interface UpdateVehicleToolsApiResponse {
+  data: VehicleApiResponse | null;
+  error: any;
+  success: boolean;
+  message: string;
+  status: number;
+}

@@ -29,6 +29,11 @@ export interface AuthorizationApiItem {
   vehicle: AuthorizationVehicle;
   driverReceivedFrom: AuthorizationDriver | null;
   supervisor: unknown | null;
+  vehicleAuthorizationTammResponseXConversition?: string;
+  /** السائق المستخدم (يستخدم عندما يكون driver فارغاً) */
+  userDriver?: { id?: string; name?: string } | null;
+  /** السائق المستلم منه */
+  userDriverReceivedFrom?: { id?: string; name?: string } | null;
 }
 
 export interface AuthorizationMeta {
@@ -125,8 +130,20 @@ export interface LastAuthorizationDataItem {
   teamWorkerCount?: number;
   /** قد يرجعه الباكند بهذا الاسم بدل teamWorkerCount */
   workersCount?: number;
+  /** رقم لوحة المركبة (يأتي مباشرة من API) */
+  vehiclePlateName?: string;
+  /** اسم السائق (يأتي مباشرة من API كـ string) */
+  driverName?: string;
+  /** رقم جسر السائق (يأتي مباشرة من API) */
+  driverJisrId?: string | null;
+  /** نوع السائق (userDriver أو driver) */
+  driverType?: 'userDriver' | 'driver' | string;
   vehicle: LastAuthorizationVehicle;
   driver: LastAuthorizationDriver | null;
+  /** السائق المستخدم (يستخدم عندما يكون driver فارغاً) */
+  userDriver?: { id?: string; name?: string } | null;
+  /** السائق المستلم منه */
+  userDriverReceivedFrom?: { id?: string; name?: string } | null;
   supervisor?: { id?: string; name?: string } | null;
 }
 
@@ -136,4 +153,34 @@ export interface LastAuthorizationDataResponse {
   success: boolean;
   message?: string;
   status?: number;
+}
+
+/** DTO لإنشاء تفويض جديد - يطابق CreateAuthorizationDto في الباك اند */
+export interface CreateAuthorizationDto {
+  vehiclePlateName: string;
+  driverNameReceivedFrom?: string;
+  supervisorName?: string;
+  driverName: string;
+  authorizationDaysCount: number;
+  tammAuthorizedId?: string;
+  authType?: 'local_only' | 'tamm_and_local';
+  authStatus?: string;
+  authorizationStartDate: Date | string;
+  authorizationEndDate?: Date | string;
+  vehicleAcceptanceStatus?: string;
+  vehicleAuthorizationDescription?: string;
+  vehicleAuthorizationTammNumber?: string;
+  vehicleAuthorizationTammResponse?: string;
+  vehicleAuthorizationTammResponseXConversition?: string;
+  vehicleAuthorizationTammSentOTPCode?: string;
+  driverNameInTammSystem?: string;
+}
+
+/** استجابة إنشاء تفويض جديد */
+export interface CreateAuthorizationResponse {
+  data: AuthorizationApiItem | Record<string, any> | null;
+  error: unknown;
+  success: boolean;
+  message: string;
+  status: number;
 }

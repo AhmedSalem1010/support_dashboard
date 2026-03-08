@@ -19,7 +19,26 @@ export interface CreateVehicleMaintainceDto {
 }
 
 export interface CreateVehicleMaintainceResponse {
-  data: unknown | null;
+  data: { id: string } | null;
+  error: unknown;
+  success: boolean;
+  message: string;
+  status: number;
+}
+
+export interface UpdateVehicleMaintainceDto {
+  maintainceDate?: string;
+  maintainceType?: string;
+  maintainceStatus?: MaintainceStatus;
+  maintanceCostBearer?: string;
+  maintanceParts?: string;
+  maintainceNote?: string;
+  maintainceSupervisorName?: string;
+  maintainceCost?: number;
+}
+
+export interface UpdateVehicleMaintainceResponse {
+  data: any;
   error: unknown;
   success: boolean;
   message: string;
@@ -100,4 +119,25 @@ export interface FilterVehicleMaintainceDto {
   maintanceParts?: string;
   maintainceSupervisorName?: string;
   officeSupervisorName?: string;
+}
+
+export interface MaintenanceStatistics {
+  totalMaintainces: number;
+  pendingMaintainces: number;
+  companyCostMaintainces: number;
+  driverCostMaintainces: number;
+  maintaincesByType: Array<{ type: string; count: number }>;
+  costsByMonth: Array<{
+    month: number;
+    monthName: string;
+    totalCost: number;
+  }>;
+}
+
+export interface MaintenanceStatisticsResponse {
+  data: MaintenanceStatistics | null;
+  error: any;
+  success: boolean;
+  message: string;
+  status: number;
 }

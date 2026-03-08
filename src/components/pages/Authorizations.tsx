@@ -1,26 +1,37 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, FileText, User, Car, Calendar, Package, Search, Filter, Download, X, Eye, Edit, XCircle, CheckCircle, AlertCircle, Clock, TrendingUp, Users, Shield, RefreshCw, Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { Plus, FileText, User, Car, Calendar, Package, Search, Filter, Download, X, Eye, Edit, XCircle, CheckCircle, AlertCircle, Clock, TrendingUp, Users, Shield, RefreshCw, Loader2, KeyRound } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
+import { Pagination } from '@/components/ui/Pagination';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { useAuthorizations } from '@/hooks/useAuthorizations';
-import { cancelAuthorization } from '@/lib/api/authorizations';
+import { cancelAuthorization, createAuthorization, sendVehicleAuthorizationOTP, verifyVehicleAuthorizationOTP } from '@/lib/api/authorizations';
+import type { CreateAuthorizationDto } from '@/types/authorization';
+import { createVehicleEquipmentInventory } from '@/lib/api/equipment';
+import type { CreateVehicleEquipmentInventoryDto, CreateVehicleEquipmentInventoryItemDto } from '@/types/equipment';
 import { useVehiclesList } from '@/hooks/useVehiclesList';
+import { fetchVehicleTools, updateVehicleTools } from '@/lib/api/vehicles';
+import type { UpdateVehicleToolsDto } from '@/types/vehicle';
 import { useLastAuthorizationData } from '@/hooks/useLastAuthorizationData';
 import { useVehicleEquipmentInfo } from '@/hooks/useVehicleEquipmentInfo';
+import { useUsersWithWorkers } from '@/hooks/useUsersWithWorkers';
 import { getVehicleInfoRequestInfo } from '@/lib/api/equipment';
 import { VehicleDriverSummary } from '@/components/ui/VehicleDriverSummary';
-import { VehicleEquipmentInfoDialog } from '@/components/ui/VehicleEquipmentInfoDialog';
+import { EquipmentInventoryGrid, type EquipmentKey, EQUIPMENT_LABELS } from '@/components/ui/EquipmentInventoryGrid';
 import { AUTHORIZATION_STATUS_LABELS, AUTHORIZATION_TYPE_LABELS, statusToArabic } from '@/lib/enums';
 import type { AuthorizationDisplay } from '@/lib/authorizations/mappers';
 import { useNotificationsContext } from '@/components/ui/Notifications';
 import { Portal } from '@/components/ui/Portal';
 import { useAlertDialog } from '@/components/ui/AlertDialog';
+import { OTPDialog } from '@/components/ui/OTPDialog';
+import { RenewConfirmDialog } from '@/components/ui/RenewConfirmDialog';
+import { CancelAuthorizationDialog } from '@/components/ui/CancelAuthorizationDialog';
+import { DriverSearchFilter } from '@/components/ui/DriverSearchFilter';
 
 function addDaysToDate(dateStr: string, days: number): string {
   if (!dateStr || days <= 0) return '';
@@ -36,19 +47,45 @@ function getDaysRemaining(endDate: string): number {
   return diff;
 }
 
-const AUTHORIZATION_EQUIPMENT_LABELS = [
-  'البليشر', 'الباكيوم', 'السلم الكبير', 'السلم الصغير',
-  'لي الماء', 'لي الباكيوم', 'نوسل ماء', 'نوسل شفط', 'نوسل كبير',
-] as const;
+function getStatusVariant(status: string): 'success' | 'warning' | 'danger' | 'info' | 'default' {
+  const statusLower = status.toLowerCase();
+  if (statusLower === 'active' || statusLower === 'ساري') return 'success';
+  if (statusLower === 'pending' || statusLower === 'قيد الانتظار' || statusLower === 'new' || statusLower === 'جديد') return 'info';
+  if (statusLower === 'expired' || statusLower === 'منتهي') return 'danger';
+  if (statusLower === 'cancelled' || statusLower === 'ملغي' || statusLower === 'rejected' || statusLower === 'مرفوض') return 'default';
+  if (statusLower === 'failed' || statusLower === 'فشل') return 'danger';
+  if (statusLower === 'maintenance' || statusLower === 'صيانة') return 'warning';
+  return 'default';
+}
 
-const API_ITEM_NAME_TO_AUTH_LABEL: Record<string, string> = {
-  بليشر: 'البليشر', البليشر: 'البليشر',
-  باكيوم: 'الباكيوم', الباكيوم: 'الباكيوم',
-  'سلم كبير': 'السلم الكبير', 'السلم الكبير': 'السلم الكبير',
-  'سلم صغير': 'السلم الصغير', 'السلم الصغير': 'السلم الصغير',
-  'لي ماء': 'لي الماء', 'لي الماء': 'لي الماء',
-  'لي باكيوم': 'لي الباكيوم', 'لي الباكيوم': 'لي الباكيوم',
-  'نوسل ماء': 'نوسل ماء', 'نوسل شفط': 'نوسل شفط', 'نوسل كبير': 'نوسل كبير',
+function getStatusIcon(status: string) {
+  const statusLower = status.toLowerCase();
+  if (statusLower === 'active' || statusLower === 'ساري') return CheckCircle;
+  if (statusLower === 'pending' || statusLower === 'قيد الانتظار' || statusLower === 'new' || statusLower === 'جديد') return Clock;
+  if (statusLower === 'expired' || statusLower === 'منتهي') return XCircle;
+  if (statusLower === 'cancelled' || statusLower === 'ملغي' || statusLower === 'rejected' || statusLower === 'مرفوض') return X;
+  if (statusLower === 'failed' || statusLower === 'فشل') return AlertCircle;
+  if (statusLower === 'maintenance' || statusLower === 'صيانة') return RefreshCw;
+  return AlertCircle;
+}
+
+function getTypeVariant(type: string): 'info' | 'success' | 'default' {
+  if (type === 'تم + محلي' || type === 'tamm_and_local') return 'info';
+  if (type === 'محلي فقط' || type === 'local_only') return 'success';
+  return 'default';
+}
+
+const API_ITEM_NAME_TO_EQUIPMENT_KEY: Record<string, EquipmentKey> = {
+  'بليشر': 'blicher', 'البليشر': 'blicher',
+  'باكيوم': 'bakium', 'الباكيوم': 'bakium',
+  'سلم كبير': 'ladderBig', 'السلم الكبير': 'ladderBig',
+  'سلم صغير': 'ladderSmall', 'السلم الصغير': 'ladderSmall',
+  'لي ماء': 'leMay', 'لي الماء': 'leMay',
+  'لي باكيوم': 'leBakium', 'لي الباكيوم': 'leBakium',
+  'لي شفط': 'leShoft', 'لي الشفط': 'leShoft',
+  'نوسل ماء': 'noselMay',
+  'نوسل شفط': 'noselShaft',
+  'نوسل كبير': 'noselKabir',
 };
 
 export function Authorizations() {
@@ -57,7 +94,7 @@ export function Authorizations() {
   const selectedPlateName = vehicleOptions.find((o) => o.value === formVehicleId)?.plateName ?? null;
   const lastAuth = useLastAuthorizationData(selectedPlateName);
   const vehicleEquipment = useVehicleEquipmentInfo(selectedPlateName);
-  const [showVehicleInfoDialog, setShowVehicleInfoDialog] = useState(false);
+  const { users: usersWithWorkers, loading: usersLoading, error: usersError } = useUsersWithWorkers();
   const { success: showSuccess, error: showError, warning, info, loading } = useNotificationsContext();
   const { confirm, DialogComponent } = useAlertDialog();
   const [filters, setFilters] = useState({
@@ -68,6 +105,7 @@ export function Authorizations() {
     vehiclePlatePart3: '',
     vehiclePlateNumbers: '',
     driverName: '',
+    driverTypeFilter: '', // 'employee' للموظف أو 'supervisor' لمشرف الفريق
     driverJisrId: '',
     driverIdReceivedFromName: '',
     authorizationStartDate: '',
@@ -79,6 +117,69 @@ export function Authorizations() {
   const updateFilter = (key: keyof typeof filters, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
     setPage(1);
+  };
+
+  const isValidLicenseStatus = (status?: string | null): boolean => {
+    if (!status) return false;
+    const normalized = status.trim().toLowerCase();
+    return (
+      normalized === 'valid' ||
+      normalized === 'active' ||
+      status.trim() === 'سارية' ||
+      status.trim() === 'ساري' ||
+      status.trim() === 'جارية' ||
+      status.trim() === 'جاري'
+    );
+  };
+
+  const extractLicenseStatus = (item: unknown, type: 'user' | 'worker'): string | null => {
+    if (!item || typeof item !== 'object') return null;
+    const record = item as Record<string, unknown>;
+
+    const userKeys = [
+      'userEmployeeData_license_status',
+      'user_license_status',
+      'user_licenseStatus',
+      'user_employeeData_licenseStatus',
+      'employeeData_licenseStatus',
+      'licenseStatus',
+    ];
+
+    const workerKeys = [
+      'workersEmployeeData_license_status',
+      'workers_license_status',
+      'workers_licenseStatus',
+      'workers_employeeData_licenseStatus',
+      'worker_license_status',
+      'employeeData_licenseStatus',
+      'licenseStatus',
+    ];
+
+    const keys = type === 'user' ? userKeys : workerKeys;
+    for (const key of keys) {
+      const value = record[key];
+      if (typeof value === 'string' && value.trim()) {
+        return value;
+      }
+    }
+
+    return null;
+  };
+
+  const getFallbackLicenseStatusFromLastAuth = (
+    selectedName: string,
+    selectedId?: string | null,
+    selectedJisrId?: string | null
+  ): string | null => {
+    const lastDriver = lastAuth.data?.driver;
+    if (!lastDriver) return null;
+
+    const sameById = Boolean(selectedId && lastDriver.id === selectedId);
+    const sameByName = Boolean(selectedName && lastDriver.name === selectedName);
+    const sameByJisr = Boolean(selectedJisrId && lastDriver.jisrId === selectedJisrId);
+
+    if (!sameById && !sameByName && !sameByJisr) return null;
+    return lastDriver.employeeData?.licenseStatus ?? null;
   };
 
   // تجميع أجزاء لوحة المركبة
@@ -94,7 +195,8 @@ export function Authorizations() {
     authorizationType: filters.authorizationType || undefined,
     authorizationStatus: filters.authorizationStatus || undefined,
     vehiclePlateName: vehiclePlateName || undefined,
-    driverName: filters.driverName || undefined,
+    driverName: (filters.driverTypeFilter === 'supervisor' && filters.driverName) || undefined,
+    userDriverName: (filters.driverTypeFilter === 'employee' && filters.driverName) || undefined,
     driverJisrId: filters.driverJisrId || undefined,
     driverIdReceivedFromName: filters.driverIdReceivedFromName || undefined,
     authorizationStartDate: filters.authorizationStartDate || undefined,
@@ -105,12 +207,15 @@ export function Authorizations() {
 
   const [showModal, setShowModal] = useState(false);
   const [selectedAuth, setSelectedAuth] = useState<AuthorizationDisplay | null>(null);
-
-  useEffect(() => {
-    if (!selectedPlateName) setShowVehicleInfoDialog(false);
-    else setShowVehicleInfoDialog(true);
-  }, [selectedPlateName]);
+  const [showOTPDialog, setShowOTPDialog] = useState(false);
+  const [otpAuthId, setOtpAuthId] = useState<string>('');
+  const [otpAuthNumber, setOtpAuthNumber] = useState<string>('');
+  const [renewingId, setRenewingId] = useState<string | null>(null);
+  const [showRenewDialog, setShowRenewDialog] = useState(false);
+  const [renewAuthData, setRenewAuthData] = useState<AuthorizationDisplay | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancelAuthData, setCancelAuthData] = useState<AuthorizationDisplay | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [currentStep, setCurrentStep] = useState(1);
@@ -118,51 +223,347 @@ export function Authorizations() {
   const [workersCount, setWorkersCount] = useState<string>('one');
   const [authorizationDays, setAuthorizationDays] = useState<number>(0);
   const [startDate, setStartDate] = useState<string>('');
+  const [receiverDriverId, setReceiverDriverId] = useState<string>('');
+  const [receiverDriverName, setReceiverDriverName] = useState<string>('');
+  const [supervisorName, setSupervisorName] = useState<string>('');
+  const [authorizationType, setAuthorizationType] = useState<'local_only' | 'tamm_and_local' | ''>('');
+  const [vehicleDescription, setVehicleDescription] = useState<string>('');
+  const [tammAuthorizedPersonId, setTammAuthorizedPersonId] = useState<string>('');
+  const [tammAuthorizedPersonName, setTammAuthorizedPersonName] = useState<string>('');
+  const [tammAuthorizedAutoFilled, setTammAuthorizedAutoFilled] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [createdAuthorizationId, setCreatedAuthorizationId] = useState<string>('');
 
-  const [authorizationEquipment, setAuthorizationEquipment] = useState<Record<string, number>>({});
+  const [authorizationEquipment, setAuthorizationEquipment] = useState<Record<EquipmentKey, number>>({
+    blicher: 0, bakium: 0, ladderBig: 0, ladderSmall: 0,
+    leMay: 0, leBakium: 0, leShoft: 0, noselShaft: 0, noselMay: 0, noselKabir: 0,
+  });
+
+  const [vehicleTools, setVehicleTools] = useState({
+    wheelWrenchNumber: 0,
+    spareTireNumber: 0,
+    tireJackNumber: 0,
+  });
+
+  // عند تغيير المركبة: جلب عدد العمال تلقائياً
+  useEffect(() => {
+    if (!lastAuth.data) return;
+    const count = lastAuth.data.teamWorkerCount ?? lastAuth.data.workersCount;
+    if (count === 0) setWorkersCount('none');
+    else if (count === 1) setWorkersCount('one');
+    else if (count !== undefined && count >= 2) setWorkersCount('two');
+  }, [lastAuth.data]);
+
+  // عند اختيار المركبة: جلب بيانات أدوات المركبة تلقائياً
+  useEffect(() => {
+    if (!formVehicleId) {
+      setVehicleTools({
+        wheelWrenchNumber: 0,
+        spareTireNumber: 0,
+        tireJackNumber: 0,
+      });
+      return;
+    }
+
+    const loadVehicleTools = async () => {
+      try {
+        const response = await fetchVehicleTools(formVehicleId);
+        if (response.success && response.data) {
+          setVehicleTools({
+            wheelWrenchNumber: response.data.wheelWrenchNumber ?? 0,
+            spareTireNumber: response.data.spareTireNumber ?? 0,
+            tireJackNumber: response.data.tireJackNumber ?? 0,
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching vehicle tools:', error);
+      }
+    };
+
+    loadVehicleTools();
+  }, [formVehicleId]);
 
   useEffect(() => {
     if (!vehicleEquipment.data || vehicleEquipment.data.length === 0) {
-      if (!selectedPlateName) setAuthorizationEquipment({});
+      if (!selectedPlateName) {
+        setAuthorizationEquipment({
+          blicher: 0, bakium: 0, ladderBig: 0, ladderSmall: 0,
+          leMay: 0, leBakium: 0, leShoft: 0, noselShaft: 0, noselMay: 0, noselKabir: 0,
+        });
+      }
       return;
     }
-    const next: Record<string, number> = {};
-    AUTHORIZATION_EQUIPMENT_LABELS.forEach((label) => { next[label] = 0; });
+    const next: Record<EquipmentKey, number> = {
+      blicher: 0, bakium: 0, ladderBig: 0, ladderSmall: 0,
+      leMay: 0, leBakium: 0, leShoft: 0, noselShaft: 0, noselMay: 0, noselKabir: 0,
+    };
     vehicleEquipment.data.forEach((item) => {
       const trimmed = item.itemName.trim();
-      const label = API_ITEM_NAME_TO_AUTH_LABEL[trimmed] ?? API_ITEM_NAME_TO_AUTH_LABEL[trimmed.replace(/^ال/, '')];
-      if (label != null && typeof item.itemCount === 'number' && item.itemCount >= 0) next[label] = item.itemCount;
+      const key = API_ITEM_NAME_TO_EQUIPMENT_KEY[trimmed] ?? API_ITEM_NAME_TO_EQUIPMENT_KEY[trimmed.replace(/^ال/, '')];
+      if (key != null && typeof item.itemCount === 'number' && item.itemCount >= 0) {
+        next[key] = item.itemCount;
+      }
     });
     setAuthorizationEquipment(next);
   }, [vehicleEquipment.data, selectedPlateName]);
 
+  /** تنبيهات عند تغيير المركبة في نموذج إضافة تفويض */
+  useEffect(() => {
+    if (!selectedPlateName) return;
+    
+    // تنبيه: لا يوجد جرد معدات للمركبة
+    if (!vehicleEquipment.isLoading && (!vehicleEquipment.data || vehicleEquipment.data.length === 0)) {
+      showError('لا يوجد جرد معدات', `لا توجد بيانات معدات للمركبة ${selectedPlateName}`);
+    }
+    
+    // تنبيه: حالة التفويض ملغي
+    if (!lastAuth.isLoading && lastAuth.data?.authorizationStatus === 'cancelled') {
+      showError('تفويض ملغي', `التفويض الأخير للمركبة ${selectedPlateName} في حالة ملغي`);
+    }
+  }, [selectedPlateName, vehicleEquipment.data, vehicleEquipment.isLoading, lastAuth.data?.authorizationStatus, lastAuth.isLoading]);
+
   const endDate = startDate && authorizationDays > 0 ? addDaysToDate(startDate, authorizationDays) : '';
 
-  const handleCancelAuthorization = async (auth: AuthorizationDisplay) => {
-    const confirmed = await confirm(
-      'تأكيد إلغاء التفويض',
-      `هل تريد إلغاء تفويض المركبة "${auth.vehicle}"؟\nهذا الإجراء لا يمكن التراجع عنه.`,
-      {
-        type: 'warning',
-        confirmText: 'تأكيد الإلغاء',
-        cancelText: 'تراجع',
+  const handleSubmitAuthorization = async () => {
+    if (!formVehicleId || !selectedPlateName) {
+      showError('خطأ في البيانات', 'يرجى اختيار المركبة');
+      return;
+    }
+    if (!receiverDriverName) {
+      showError('خطأ في البيانات', 'يرجى اختيار السائق المستلم');
+      return;
+    }
+    if (!authorizationDays || authorizationDays <= 0) {
+      showError('خطأ في البيانات', 'يرجى إدخال عدد أيام التفويض');
+      return;
+    }
+    if (!startDate) {
+      showError('خطأ في البيانات', 'يرجى إدخال تاريخ البداية');
+      return;
+    }
+
+    setIsSubmitting(true);
+    const loadingId = loading('جاري حفظ التفويض...', 'يتم إرسال البيانات إلى الخادم');
+
+    try {
+      const dto: CreateAuthorizationDto = {
+        vehiclePlateName: selectedPlateName,
+        driverName: receiverDriverName,
+        driverNameReceivedFrom: lastAuth.data?.driver?.name,
+        supervisorName: supervisorName || undefined,
+        authorizationDaysCount: authorizationDays,
+        authorizationStartDate: startDate,
+        authorizationEndDate: endDate || undefined,
+        authType: authorizationType || undefined,
+        driverNameInTammSystem: tammAuthorizedPersonName || undefined,
+        vehicleAuthorizationDescription: vehicleDescription || undefined,
+      };
+
+      const response = await createAuthorization(dto);
+
+      if (response.success) {
+        const authId = response.data?.id || '';
+        setCreatedAuthorizationId(authId);
+        showSuccess('تم حفظ التفويض بنجاح', response.message || 'تم إنشاء التفويض بنجاح');
+
+        // المطلوب: لا تحديث بعد الخطوة الأولى، الانتقال مباشرة للخطوة الثانية
+        setCurrentStep(2);
+      } else {
+        showError('فشل حفظ التفويض', response.message || 'حدث خطأ أثناء حفظ التفويض');
       }
-    );
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'حدث خطأ غير متوقع';
+      showError('فشل حفظ التفويض', errorMsg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const resetFormAndReload = () => {
+    setShowModal(false);
+    setCurrentStep(1);
+    setFormVehicleId('');
+    setReceiverDriverId('');
+    setReceiverDriverName('');
+    setSupervisorName('');
+    setAuthorizationType('');
+    setVehicleDescription('');
+    setAuthorizationDays(0);
+    setStartDate('');
+    setTammAuthorizedPersonName('');
+    setTammAuthorizedAutoFilled(false);
+    setCreatedAuthorizationId('');
+    setAuthorizationEquipment({
+      blicher: 0, bakium: 0, ladderBig: 0, ladderSmall: 0,
+      leMay: 0, leBakium: 0, leShoft: 0, noselShaft: 0, noselMay: 0, noselKabir: 0,
+    });
+    setVehicleTools({
+      wheelWrenchNumber: 0,
+      spareTireNumber: 0,
+      tireJackNumber: 0,
+    });
+    window.location.reload();
+  };
+
+  const handleSubmitEquipmentInventory = async () => {
+    // إذا لا يوجد عمال، ننتقل مباشرة للخطوة الثالثة
+    if (workersCount === 'none') {
+      setCurrentStep(3);
+      return;
+    }
+
+    if (!createdAuthorizationId) {
+      showError('خطأ في البيانات', 'لم يتم العثور على معرف التفويض. يرجى إعادة المحاولة من الخطوة الأولى.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    const loadingId = loading('جاري حفظ جرد العهدة...', 'يتم إرسال البيانات إلى الخادم');
+
+    try {
+      const items: CreateVehicleEquipmentInventoryItemDto[] = Object.entries(authorizationEquipment).map(([key, count]) => ({
+        itemName: EQUIPMENT_LABELS[key as EquipmentKey],
+        itemCount: count,
+        itemStatus: 'active',
+        itemInventoryStatus: 'good',
+      }));
+
+      const teamWorkerCount = workersCount === 'one' ? 1 : 2;
+
+      const inventoryDto: CreateVehicleEquipmentInventoryDto = {
+        vehicleAuthorizationId: createdAuthorizationId,
+        items,
+        equipmentInventoryType: 'authorization',
+        supervisorId: supervisorName || 'temp-supervisor-id',
+        equipmentInventoryDescription: vehicleDescription || undefined,
+        teamWorkerCount,
+        equipmentInventoryStatus: 'check',
+      };
+
+      const inventoryResponse = await createVehicleEquipmentInventory(inventoryDto);
+
+      if (inventoryResponse.success) {
+        showSuccess('تم حفظ جرد العهدة بنجاح', inventoryResponse.message || 'تم إنشاء جرد العهدة بنجاح');
+        setCurrentStep(3);
+      } else {
+        showError('فشل حفظ جرد العهدة', inventoryResponse.message || 'حدث خطأ أثناء حفظ جرد العهدة');
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'حدث خطأ غير متوقع';
+      showError('فشل حفظ جرد العهدة', errorMsg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleFinishAuthorizationFlow = async () => {
+    if (!formVehicleId) {
+      showError('خطأ في البيانات', 'لم يتم العثور على معرف المركبة.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    const loadingId = loading('جاري حفظ بيانات الأدوات...', 'يتم إرسال البيانات إلى الخادم');
+
+    try {
+      const toolsDto: UpdateVehicleToolsDto = {
+        vehicleId: formVehicleId,
+        wheelWrenchNumber: vehicleTools.wheelWrenchNumber,
+        spareTireNumber: vehicleTools.spareTireNumber,
+        tireJackNumber: vehicleTools.tireJackNumber,
+      };
+
+      const toolsResponse = await updateVehicleTools(toolsDto);
+
+      if (toolsResponse.success) {
+        showSuccess('تم حفظ جميع البيانات بنجاح', 'تم حفظ بيانات الأدوات بنجاح');
+        resetFormAndReload();
+      } else {
+        showError('فشل حفظ بيانات الأدوات', toolsResponse.message || 'حدث خطأ أثناء حفظ بيانات الأدوات');
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'حدث خطأ غير متوقع';
+      showError('فشل حفظ البيانات', errorMsg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+
+  const handleRenewAuthorization = async (auth: AuthorizationDisplay) => {
+    setRenewAuthData(auth);
+    setShowRenewDialog(true);
+  };
+
+  const confirmRenewAuthorization = async () => {
+    if (!renewAuthData) return;
+
+    setRenewingId(renewAuthData.id);
+    const loadingId = loading('جاري إعادة إرسال التفويض...', 'يتم إرسال الطلب إلى نظام تم');
+
+    try {
+      const response = await sendVehicleAuthorizationOTP(renewAuthData.id);
+
+      if (response.success) {
+        showSuccess('تم إعادة إرسال التفويض بنجاح', response.message || 'تم إرسال رمز OTP إلى السائق');
+        refetch();
+      } else {
+        showError('فشل إعادة إرسال التفويض', response.message || 'حدث خطأ أثناء إعادة إرسال التفويض');
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'حدث خطأ غير متوقع';
+      showError('فشل إعادة إرسال التفويض', errorMsg);
+    } finally {
+      setRenewingId(null);
+    }
+  };
+
+  const handleOTPSubmit = async (otp: string) => {
+    if (!otpAuthId) {
+      showError('خطأ في البيانات', 'لم يتم العثور على معرف التفويض');
+      return;
+    }
+
+    const loadingId = loading('جاري تأكيد رمز التحقق...', 'يتم التحقق من الرمز');
+
+    try {
+      const response = await verifyVehicleAuthorizationOTP(otpAuthId, otp);
+
+      if (response.success) {
+        showSuccess('تم تأكيد التفويض بنجاح', response.message || 'تم تأكيد رمز OTP بنجاح');
+        setShowOTPDialog(false);
+        refetch();
+      } else {
+        showError('فشل تأكيد رمز التحقق', response.message || 'الرمز غير صحيح أو منتهي الصلاحية');
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'حدث خطأ غير متوقع';
+      showError('فشل تأكيد رمز التحقق', errorMsg);
+    }
+  };
+
+  const handleCancelAuthorization = (auth: AuthorizationDisplay) => {
+    setCancelAuthData(auth);
+    setShowCancelDialog(true);
+  };
+
+  const confirmCancelAuthorization = async () => {
+    if (!cancelAuthData) return;
     
-    if (!confirmed) return;
-    
-    setCancellingId(auth.id);
-    const loadingId = loading('جاري إلغاء التفويض...', `تفويض المركبة ${auth.vehicle}`);
+    setCancellingId(cancelAuthData.id);
+    setShowCancelDialog(false);
+    const loadingId = loading('جاري إلغاء التفويض...', `تفويض المركبة ${cancelAuthData.vehicle}`);
     
     try {
-      await cancelAuthorization(auth.id);
+      await cancelAuthorization(cancelAuthData.id);
       await refetch();
       setSelectedAuth(null);
-      showSuccess('تم إلغاء التفويض بنجاح', `تم إلغاء تفويض المركبة ${auth.vehicle}`);
+      showSuccess('تم إلغاء التفويض بنجاح', `تم إلغاء تفويض المركبة ${cancelAuthData.vehicle}`);
     } catch (err) {
       showError('فشل إلغاء التفويض', err instanceof Error ? err.message : 'حدث خطأ أثناء إلغاء التفويض');
     } finally {
       setCancellingId(null);
+      setCancelAuthData(null);
     }
   };
 
@@ -176,6 +577,7 @@ export function Authorizations() {
       vehiclePlatePart3: '',
       vehiclePlateNumbers: '',
       driverName: '',
+      driverTypeFilter: '',
       driverJisrId: '',
       driverIdReceivedFromName: '',
       authorizationStartDate: '',
@@ -273,7 +675,7 @@ export function Authorizations() {
       label: 'النوع',
       render: (value: unknown, row: any) => (
         <div className="space-y-1">
-          <Badge variant={String(value) === 'تم + محلي' ? 'info' : 'default'}>
+          <Badge variant={getTypeVariant(String(value))}>
             {String(value)}
           </Badge>
           <div className="flex items-center gap-1">
@@ -289,9 +691,8 @@ export function Authorizations() {
       render: (value: unknown) => {
         const v = String(value);
         const displayStatus = statusToArabic(v);
-        const variant = displayStatus === 'ساري' ? 'success' : displayStatus === 'قريب الانتهاء' ? 'warning' : displayStatus === 'ملغي' || displayStatus === 'مرفوض' ? 'default' : 'info';
-        const icon = displayStatus === 'ساري' ? CheckCircle : displayStatus === 'قريب الانتهاء' ? AlertCircle : X;
-        const Icon = icon;
+        const variant = getStatusVariant(v);
+        const Icon = getStatusIcon(v);
         return (
           <Badge variant={variant} className="flex items-center gap-1.5">
             <Icon className="w-3.5 h-3.5" />
@@ -315,12 +716,26 @@ export function Authorizations() {
           >
             <Eye className="w-4 h-4 text-gray-400 group-hover:text-blue-600" />
           </button>
+          {(row.status === 'new' || row.status === 'pending' || statusToArabic(row.status) === 'جديد' || statusToArabic(row.status) === 'قيد الانتظار') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setOtpAuthId(row.id);
+                setOtpAuthNumber(row.authNumber);
+                setShowOTPDialog(true);
+              }}
+              className="p-2 hover:bg-blue-50 rounded-lg transition-colors group"
+              title="إدخال رمز التحقق (OTP)"
+            >
+              <KeyRound className="w-4 h-4 text-gray-400 group-hover:text-blue-600" />
+            </button>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation();
               handleCancelAuthorization(row);
             }}
-            disabled={cancellingId === row.id || row.status === 'منتهي' || row.status === 'ملغي'}
+            disabled={cancellingId === row.id || row.status === 'expired' || row.status === 'cancelled'}
             className="p-2 hover:bg-red-50 rounded-lg transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
             title="إلغاء التفويض"
           >
@@ -333,12 +748,17 @@ export function Authorizations() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              // Renew logic
+              handleRenewAuthorization(row);
             }}
-            className="p-2 hover:bg-purple-50 rounded-lg transition-colors group"
-            title="تجديد"
+            disabled={renewingId === row.id || row.status === 'active' || statusToArabic(row.status) === 'ساري'}
+            className="p-2 hover:bg-purple-50 rounded-lg transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
+            title={row.status === 'active' || statusToArabic(row.status) === 'ساري' ? 'التفويض ساري - لا يمكن إعادة الإرسال' : 'إعادة إرسال'}
           >
-            <RefreshCw className="w-4 h-4 text-gray-400 group-hover:text-purple-600" />
+            {renewingId === row.id ? (
+              <Loader2 className="w-4 h-4 text-purple-500 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4 text-gray-400 group-hover:text-purple-600" />
+            )}
           </button>
         </div>
       ),
@@ -469,7 +889,7 @@ export function Authorizations() {
 
         <Card 
           className="border-r-4 border-[#f57c00] hover:shadow-xl transition-all duration-300 group cursor-pointer"
-          onClick={() => warning('قريبة من الانتهاء', `${stats.expiringSoon} تفويض تحتاج إلى تجديد خلال 30 يوم`)}
+          onClick={() => warning('قريبة من الانتهاء', `${stats.expiringSoon} تفويض تحتاج إلى إعادة إرسال خلال 30 يوم`)}
         >
           <div className="flex items-center justify-between">
             <div>
@@ -480,7 +900,7 @@ export function Authorizations() {
               <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 group-hover:scale-110 transition-transform">
                 {stats.expiringSoon}
               </p>
-              <p className="text-xs text-orange-600 mt-1 font-semibold">تحتاج تجديد</p>
+              <p className="text-xs text-orange-600 mt-1 font-semibold">تحتاج إعادة إرسال</p>
             </div>
             <div className="relative">
               <div className="absolute inset-0 bg-[#f57c00]/20 rounded-full blur-xl group-hover:blur-2xl transition-all"></div>
@@ -583,16 +1003,12 @@ export function Authorizations() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-[#4d647c] mb-2">اسم السائق</label>
-                <input
-                  type="text"
-                  value={filters.driverName}
-                  onChange={(e) => updateFilter('driverName', e.target.value)}
-                  placeholder="بحث بالاسم"
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
-                />
-              </div>
+              <DriverSearchFilter
+                driverTypeFilter={filters.driverTypeFilter}
+                driverName={filters.driverName}
+                onDriverTypeChange={(value) => updateFilter('driverTypeFilter', value)}
+                onDriverNameChange={(value) => updateFilter('driverName', value)}
+              />
 
               <div>
                 <label className="block text-sm font-medium text-[#4d647c] mb-2">رقم السائق (جسر)</label>
@@ -606,7 +1022,7 @@ export function Authorizations() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#4d647c] mb-2">اسم المسلم منه</label>
+                <label className="block text-sm font-medium text-[#4d647c] mb-2">اسم المستلم منه</label>
                 <input
                   type="text"
                   value={filters.driverIdReceivedFromName}
@@ -628,46 +1044,13 @@ export function Authorizations() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#4d647c] mb-2">تاريخ انتهاء من</label>
+                <label className="block text-sm font-medium text-[#4d647c] mb-2">تاريخ النهاية</label>
                 <input
                   type="date"
-                  value={filters.authorizationEndDateFrom}
-                  onChange={(e) => updateFilter('authorizationEndDateFrom', e.target.value)}
+                  value={filters.authorizationEndDate}
+                  onChange={(e) => updateFilter('authorizationEndDate', e.target.value)}
                   className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
                 />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#4d647c] mb-2">تاريخ انتهاء إلى</label>
-                <input
-                  type="date"
-                  value={filters.authorizationEndDateTo}
-                  onChange={(e) => updateFilter('authorizationEndDateTo', e.target.value)}
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white"
-                />
-              </div>
-
-              <div className="sm:col-span-2 lg:col-span-1 flex flex-col justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const today = new Date();
-                    const toDate = new Date(today);
-                    toDate.setDate(toDate.getDate() + 30);
-                    const fromStr = today.toISOString().split('T')[0];
-                    const toStr = toDate.toISOString().split('T')[0];
-                    setFilters((prev) => ({
-                      ...prev,
-                      authorizationStatus: 'active',
-                      authorizationEndDateFrom: fromStr,
-                      authorizationEndDateTo: toStr,
-                    }));
-                    setPage(1);
-                  }}
-                  className="px-4 py-2.5 text-sm font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-lg border border-orange-200 transition-colors"
-                >
-                  قريب الانتهاء (اليوم ← +30 يوم)
-                </button>
               </div>
 
               {/* Reset Button */}
@@ -740,9 +1123,7 @@ export function Authorizations() {
                         <p className="text-sm text-gray-600">{auth.vehicleModel}</p>
                       </div>
                     </div>
-                    <Badge 
-                      variant={(s => s === 'ساري' ? 'success' : s === 'قريب الانتهاء' ? 'warning' : 'default')(statusToArabic(auth.status))}
-                    >
+                    <Badge variant={getStatusVariant(auth.status)}>
                       {statusToArabic(auth.status)}
                     </Badge>
                   </div>
@@ -821,82 +1202,7 @@ export function Authorizations() {
         </div>
       ))}
 
-      {/* Pagination */}
-      {!isLoading && !error && meta && meta.totalPages > 1 && (
-        <Card>
-          <div className="flex items-center justify-center px-6 py-4">
-            <nav className="flex items-center gap-1" aria-label="ترقيم الصفحات">
-              <button
-                type="button"
-                onClick={() => setPage(1)}
-                disabled={!meta.hasPreviousPage}
-                className="p-2 rounded-xl text-gray-500 hover:bg-[#09b9b5]/10 hover:text-[#09b9b5] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-all duration-200"
-                title="الأولى"
-              >
-                <ChevronsRight className="w-5 h-5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setPage(page - 1)}
-                disabled={!meta.hasPreviousPage}
-                className="p-2 rounded-xl text-gray-500 hover:bg-[#09b9b5]/10 hover:text-[#09b9b5] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-all duration-200"
-                title="السابق"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-              <div className="flex items-center gap-1 mx-2">
-                {Array.from({ length: meta.totalPages }, (_, i) => i + 1)
-                  .filter((p) => {
-                    if (meta.totalPages <= 7) return true;
-                    if (p === 1 || p === meta.totalPages) return true;
-                    if (Math.abs(p - meta.page) <= 2) return true;
-                    return false;
-                  })
-                  .map((p, idx, arr) => {
-                    const prev = arr[idx - 1];
-                    const showEllipsis = prev != null && p - prev > 1;
-                    return (
-                      <span key={p} className="flex items-center gap-0.5">
-                        {showEllipsis && (
-                          <span className="px-2 text-gray-400 text-sm">...</span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setPage(p)}
-                          className={`min-w-[2.25rem] h-9 px-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-                            meta.page === p
-                              ? 'bg-[#09b9b5] text-white shadow-md shadow-[#09b9b5]/25'
-                              : 'text-gray-600 hover:bg-[#09b9b5]/10 hover:text-[#09b9b5]'
-                          }`}
-                        >
-                          {p}
-                        </button>
-                      </span>
-                    );
-                  })}
-              </div>
-              <button
-                type="button"
-                onClick={() => setPage(page + 1)}
-                disabled={!meta.hasNextPage}
-                className="p-2 rounded-xl text-gray-500 hover:bg-[#09b9b5]/10 hover:text-[#09b9b5] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-all duration-200"
-                title="التالي"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setPage(meta.totalPages)}
-                disabled={!meta.hasNextPage}
-                className="p-2 rounded-xl text-gray-500 hover:bg-[#09b9b5]/10 hover:text-[#09b9b5] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-all duration-200"
-                title="الأخيرة"
-              >
-                <ChevronsLeft className="w-5 h-5" />
-              </button>
-            </nav>
-          </div>
-        </Card>
-      )}
+      {meta && <Pagination meta={meta} onPageChange={setPage} />}
 
       {/* Authorization Details Modal */}
       {selectedAuth && (
@@ -926,10 +1232,10 @@ export function Authorizations() {
                   <h2 className="text-2xl font-bold mb-1">{selectedAuth.authNumber}</h2>
                   <p className="text-white/90">{selectedAuth.vehicleModel}</p>
                   <div className="flex gap-2 mt-2">
-                    <Badge variant={(s => s === 'ساري' ? 'success' : s === 'قريب الانتهاء' ? 'warning' : 'default')(statusToArabic(selectedAuth.status))} className="bg-white/20 border-white/30">
+                    <Badge variant={getStatusVariant(selectedAuth.status)} className="bg-white/20 border-white/30">
                       {statusToArabic(selectedAuth.status)}
                     </Badge>
-                    <Badge variant="info" className="bg-white/20 border-white/30">
+                    <Badge variant={getTypeVariant(selectedAuth.type)} className="bg-white/20 border-white/30">
                       {selectedAuth.type}
                     </Badge>
                   </div>
@@ -1011,7 +1317,7 @@ export function Authorizations() {
                 </Button>
                 <Button variant="secondary" className="flex-1 group">
                   <RefreshCw className="w-4 h-4 ml-2 group-hover:rotate-180 transition-transform" />
-                  تجديد التفويض
+                  إعادة إرسال التفويض
                 </Button>
                 <Button variant="outline" className="group">
                   <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
@@ -1099,7 +1405,7 @@ export function Authorizations() {
               </div>
             </div>
 
-            <form className="p-6 space-y-6">
+            <form className="p-6 space-y-6" onSubmit={(e) => { e.preventDefault(); handleSubmitAuthorization(); }}>
               {/* Step 1: Basic Information */}
               {currentStep === 1 && (
                 <div className="space-y-6 animate-fadeIn">
@@ -1109,20 +1415,20 @@ export function Authorizations() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input
-                      label="رقم التفويض"
-                      placeholder="AUTH-2024-XXX"
-                      required
-                    />
 
-                    <div>
+                    <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         نوع التفويض<span className="text-red-500 mr-1">*</span>
                       </label>
-                      <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]">
+                      <select 
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]"
+                        value={authorizationType}
+                        onChange={(e) => setAuthorizationType(e.target.value as 'local_only' | 'tamm_and_local' | '')}
+                        required
+                      >
                         <option value="">اختر النوع</option>
-                        <option value="local">محلي فقط</option>
-                        <option value="tamm_local">تم + محلي</option>
+                        <option value="local_only">محلي فقط</option>
+                        <option value="tamm_and_local">تم + محلي</option>
                       </select>
                     </div>
 
@@ -1158,49 +1464,221 @@ export function Authorizations() {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         السائق المستلم<span className="text-red-500 mr-1">*</span>
                       </label>
-                      <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]">
-                        <option value="">اختر السائق</option>
-                        <option value="1">محمد أحمد</option>
-                        <option value="2">خالد سعيد</option>
-                      </select>
+                      <SearchableSelect
+                        options={
+                          usersLoading 
+                            ? [{ value: '', label: 'جاري التحميل...' }]
+                            : usersError
+                            ? [{ value: '', label: 'خطأ في التحميل' }]
+                            : (() => {
+                                const allOptions: Array<{ value: string; label: string }> = [
+                                  { value: '', label: 'اختر الشخص' }
+                                ];
+                                
+                                usersWithWorkers.forEach(user => {
+                                  if (user.user_name) {
+                                    allOptions.push({
+                                      value: `user_${user.user_name}`,
+                                      label: `${user.user_name}${user.user_jisr_id ? ` (${user.user_jisr_id})` : ''} - مستخدم`,
+                                    });
+                                  }
+                                  
+                                  if (user.workers_id && user.workers_name) {
+                                    allOptions.push({
+                                      value: user.workers_id || '',
+                                      label: `${user.workers_name}${user.workers_jisr_id ? ` (${user.workers_jisr_id})` : ''}${user.workers_role ? ` - ${user.workers_role}` : ' - عامل'}`,
+                                    });
+                                  }
+                                });
+                                
+                                return allOptions;
+                              })()
+                        }
+                        value={receiverDriverId}
+                        onChange={(val) => {
+                          setReceiverDriverId(val);
+                          if (!val) {
+                            setReceiverDriverName('');
+                            setTammAuthorizedAutoFilled(false);
+                            setTammAuthorizedPersonId('');
+                            setTammAuthorizedPersonName('');
+                            return;
+                          }
+                          
+                          if (val.startsWith('user_')) {
+                            const userName = val.replace('user_', '');
+                            const selectedUser = usersWithWorkers.find(u => u.user_name === userName);
+                            if (selectedUser && selectedUser.user_name) {
+                              setReceiverDriverName(selectedUser.user_name);
+
+                              const licenseStatus =
+                                extractLicenseStatus(selectedUser, 'user') ||
+                                getFallbackLicenseStatusFromLastAuth(
+                                  selectedUser.user_name,
+                                  null,
+                                  selectedUser.user_jisr_id
+                                );
+
+                              if (isValidLicenseStatus(licenseStatus)) {
+                                setTammAuthorizedPersonId(val);
+                                setTammAuthorizedPersonName(selectedUser.user_name);
+                                setTammAuthorizedAutoFilled(true);
+                              } else {
+                                setTammAuthorizedAutoFilled(false);
+                                setTammAuthorizedPersonId('');
+                                setTammAuthorizedPersonName('');
+                              }
+                            }
+                          } else {
+                            const selectedUser = usersWithWorkers.find(u => u.workers_id === val);
+                            if (selectedUser && selectedUser.workers_name) {
+                              setReceiverDriverName(selectedUser.workers_name);
+
+                              const licenseStatus =
+                                extractLicenseStatus(selectedUser, 'worker') ||
+                                getFallbackLicenseStatusFromLastAuth(
+                                  selectedUser.workers_name,
+                                  selectedUser.workers_id,
+                                  selectedUser.workers_jisr_id
+                                );
+
+                              if (isValidLicenseStatus(licenseStatus)) {
+                                setTammAuthorizedPersonId(val);
+                                setTammAuthorizedPersonName(selectedUser.workers_name);
+                                setTammAuthorizedAutoFilled(true);
+                              } else {
+                                setTammAuthorizedAutoFilled(false);
+                                setTammAuthorizedPersonId('');
+                                setTammAuthorizedPersonName('');
+                              }
+                            }
+                          }
+                        }}
+                        placeholder="ابحث عن السائق..."
+                        disabled={usersLoading}
+                      />
+                      {usersError && (
+                        <p className="text-xs text-red-500 mt-1">
+                          ⚠️ {usersError}
+                        </p>
+                      )}
+                      {!usersLoading && !usersError && usersWithWorkers.length === 0 && (
+                        <p className="text-xs text-amber-600 mt-1">
+                          ⚠️ لا توجد بيانات مشرفين متاحة
+                        </p>
+                      )}
+                      {receiverDriverId && (() => {
+                        let licenseStatus: string | null = null;
+                        let personName = '';
+
+                        if (receiverDriverId.startsWith('user_')) {
+                          const userName = receiverDriverId.replace('user_', '');
+                          const selectedUser = usersWithWorkers.find(u => u.user_name === userName);
+                          personName = selectedUser?.user_name || '';
+                          licenseStatus =
+                            extractLicenseStatus(selectedUser, 'user') ||
+                            getFallbackLicenseStatusFromLastAuth(personName, null, selectedUser?.user_jisr_id);
+                        } else {
+                          const selectedUser = usersWithWorkers.find(u => u.workers_id === receiverDriverId);
+                          personName = selectedUser?.workers_name || '';
+                          licenseStatus =
+                            extractLicenseStatus(selectedUser, 'worker') ||
+                            getFallbackLicenseStatusFromLastAuth(
+                              personName,
+                              selectedUser?.workers_id,
+                              selectedUser?.workers_jisr_id
+                            );
+                        }
+
+                        if (!licenseStatus) {
+                          return (
+                            <p className="text-xs mt-1 text-amber-600">
+                              ⚠️ تعذر التحقق من حالة الرخصة لهذا الشخص من البيانات الحالية
+                            </p>
+                          );
+                        }
+
+                        const isValid = isValidLicenseStatus(licenseStatus);
+                        return (
+                          <p className={`text-xs mt-1 ${isValid ? 'text-green-600' : 'text-red-500'}`}>
+                            {isValid
+                              ? `✓ الرخصة سارية - تم ملء المفوض في تم تلقائياً (${personName})`
+                              : `✗ الرخصة ${licenseStatus} - غير سارية`}
+                          </p>
+                        );
+                      })()}
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         المشرف المسلم<span className="text-red-500 mr-1">*</span>
                       </label>
-                      <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]">
-                        <option value="">اختر المشرف</option>
-                        <option value="1">أحمد علي</option>
-                        <option value="2">خالد محمد</option>
-                      </select>
+                      <input
+                        type="text"
+                        value={supervisorName}
+                        onChange={(e) => setSupervisorName(e.target.value)}
+                        placeholder="أدخل اسم المشرف المسلم"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]"
+                      />
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         الشخص المفوض السابق
                       </label>
-                      <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]">
-                        <option value="">اختر الشخص</option>
-                        <option value="1">محمد أحمد</option>
-                        <option value="2">خالد سعيد</option>
-                      </select>
+                      <input
+                        type="text"
+                        readOnly
+                        value={lastAuth.isLoading ? 'جاري التحميل...' : (lastAuth.data?.driver?.name ?? '')}
+                        placeholder={formVehicleId ? 'لا يوجد سائق مسجل' : 'يُجلب تلقائياً عند اختيار المركبة'}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
+                      />
+                      {lastAuth.data?.driver?.jisrId && (
+                        <p className="text-xs text-gray-500 mt-1">رقم جسر: {lastAuth.data.driver.jisrId}</p>
+                      )}
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         الشخص المفوض في تم
+                        {tammAuthorizedAutoFilled && (
+                          <span className="mr-2 text-xs text-green-600 font-normal">✓ مُعبأ تلقائياً</span>
+                        )}
                       </label>
-                      <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]">
-                        <option value="">اختر الشخص</option>
-                        <option value="1">محمد أحمد</option>
-                        <option value="2">خالد سعيد</option>
-                      </select>
+                      {tammAuthorizedAutoFilled ? (
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            readOnly
+                            value={tammAuthorizedPersonName}
+                            className="flex-1 px-3 py-2 border border-green-300 rounded-lg bg-green-50 text-gray-700"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => { setTammAuthorizedAutoFilled(false); setTammAuthorizedPersonId(''); setTammAuthorizedPersonName(''); }}
+                            className="px-3 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                            title="تغيير يدوياً"
+                          >
+                            تغيير
+                          </button>
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          value={tammAuthorizedPersonName}
+                          onChange={(e) => setTammAuthorizedPersonName(e.target.value)}
+                          placeholder="أدخل اسم الشخص المفوض في تم"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]"
+                        />
+                      )}
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         عدد العمال في الفريق<span className="text-red-500 mr-1">*</span>
+                        {(lastAuth.data?.teamWorkerCount !== undefined || lastAuth.data?.workersCount !== undefined) && (
+                          <span className="mr-2 text-xs text-blue-600 font-normal">✓ من بيانات المركبة</span>
+                        )}
                       </label>
                       <select 
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]"
@@ -1256,6 +1734,8 @@ export function Authorizations() {
                     </label>
                     <textarea
                       rows={3}
+                      value={vehicleDescription}
+                      onChange={(e) => setVehicleDescription(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]"
                       placeholder="اكتب ملاحظات عن حالة المركبة..."
                     ></textarea>
@@ -1264,34 +1744,20 @@ export function Authorizations() {
               )}
 
               {/* Step 2: Equipment Inventory */}
-              {currentStep === 2 && workersCount !== 'none' && (
-                <div className="space-y-6 animate-fadeIn">
-                  <div className="flex items-center gap-2 pb-3 border-b border-gray-200">
-                    <Package className="w-5 h-5 text-[#09b9b5]" />
-                    <h3 className="text-lg font-bold text-gray-900">جرد العهدة</h3>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {AUTHORIZATION_EQUIPMENT_LABELS.map((item, i) => (
-                      <div key={i} className="p-4 bg-gradient-to-br from-gray-50 to-white rounded-xl border-2 border-gray-200 hover:border-[#09b9b5] transition-all group">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2.5 bg-[#09b9b5]/10 rounded-lg group-hover:bg-[#09b9b5]/20 transition-colors">
-                            <Package className="w-5 h-5 text-[#09b9b5]" />
-                          </div>
-                          <div className="flex-1">
-                            <label className="text-sm font-medium text-gray-700 mb-1 block">{item}</label>
-                            <input
-                              type="number"
-                              min={0}
-                              value={authorizationEquipment[item] ?? 0}
-                              onChange={(e) => setAuthorizationEquipment((prev) => ({ ...prev, [item]: Math.max(0, Number(e.target.value) || 0) }))}
-                              className="w-full text-lg font-bold border-0 p-0 focus:ring-0 text-gray-900"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+              {currentStep === 2 && (
+                <div className="animate-fadeIn">
+                  {workersCount === 'none' ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 text-sm">
+                      لا يوجد عمال في الفريق، سيتم تجاوز جرد العهدة والانتقال للخطوة التالية.
+                    </div>
+                  ) : (
+                    <EquipmentInventoryGrid
+                      equipment={authorizationEquipment}
+                      onChange={setAuthorizationEquipment}
+                      isLoading={vehicleEquipment.isLoading}
+                      error={vehicleEquipment.error}
+                    />
+                  )}
                 </div>
               )}
 
@@ -1304,24 +1770,59 @@ export function Authorizations() {
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {['كفر استبنه', 'عفريته', 'مفك عجل'].map((item, i) => (
-                      <div key={i} className="p-4 bg-gradient-to-br from-green-50 to-white rounded-xl border-2 border-green-200 hover:border-green-400 transition-all group">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2.5 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
-                            <Package className="w-5 h-5 text-green-600" />
-                          </div>
-                          <div className="flex-1">
-                            <label className="text-sm font-medium text-gray-700 mb-1 block">{item}</label>
-                            <input 
-                              type="number" 
-                              min="0" 
-                              defaultValue="0" 
-                              className="w-full text-lg font-bold border-0 p-0 focus:ring-0 text-gray-900"
-                            />
-                          </div>
+                    <div className="p-4 bg-gradient-to-br from-green-50 to-white rounded-xl border-2 border-green-200 hover:border-green-400 transition-all group">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
+                          <Package className="w-5 h-5 text-green-600" />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-sm font-medium text-gray-700 mb-1 block">كفر استبنه</label>
+                          <input 
+                            type="number" 
+                            min="0" 
+                            value={vehicleTools.spareTireNumber}
+                            onChange={(e) => setVehicleTools({ ...vehicleTools, spareTireNumber: parseInt(e.target.value) || 0 })}
+                            className="w-full text-lg font-bold border-0 p-0 focus:ring-0 text-gray-900"
+                          />
                         </div>
                       </div>
-                    ))}
+                    </div>
+
+                    <div className="p-4 bg-gradient-to-br from-green-50 to-white rounded-xl border-2 border-green-200 hover:border-green-400 transition-all group">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
+                          <Package className="w-5 h-5 text-green-600" />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-sm font-medium text-gray-700 mb-1 block">عفريته</label>
+                          <input 
+                            type="number" 
+                            min="0" 
+                            value={vehicleTools.tireJackNumber}
+                            onChange={(e) => setVehicleTools({ ...vehicleTools, tireJackNumber: parseInt(e.target.value) || 0 })}
+                            className="w-full text-lg font-bold border-0 p-0 focus:ring-0 text-gray-900"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-gradient-to-br from-green-50 to-white rounded-xl border-2 border-green-200 hover:border-green-400 transition-all group">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
+                          <Package className="w-5 h-5 text-green-600" />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-sm font-medium text-gray-700 mb-1 block">مفك عجل</label>
+                          <input 
+                            type="number" 
+                            min="0" 
+                            value={vehicleTools.wheelWrenchNumber}
+                            onChange={(e) => setVehicleTools({ ...vehicleTools, wheelWrenchNumber: parseInt(e.target.value) || 0 })}
+                            className="w-full text-lg font-bold border-0 p-0 focus:ring-0 text-gray-900"
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1352,26 +1853,67 @@ export function Authorizations() {
                 </div>
 
                 <div className="flex gap-2">
-                  {currentStep < 3 ? (
+                  {currentStep === 1 ? (
                     <Button 
                       variant="primary" 
-                      type="button"
-                      onClick={() => setCurrentStep(currentStep + 1)}
+                      type="submit"
+                      disabled={isSubmitting}
                       className="group relative overflow-hidden"
                     >
                       <div className="absolute inset-0 bg-white/20 translate-x-full group-hover:translate-x-0 transition-transform"></div>
-                      <span className="relative z-10">التالي</span>
-                      <TrendingUp className="w-4 h-4 mr-2 relative z-10 group-hover:translate-x-1 transition-transform" />
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 ml-2 relative z-10 animate-spin" />
+                          <span className="relative z-10">جاري الحفظ...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="relative z-10">التالي</span>
+                          <TrendingUp className="w-4 h-4 mr-2 relative z-10 group-hover:translate-x-1 transition-transform" />
+                        </>
+                      )}
+                    </Button>
+                  ) : currentStep === 2 ? (
+                    <Button 
+                      variant="primary" 
+                      type="button"
+                      onClick={handleSubmitEquipmentInventory}
+                      disabled={isSubmitting}
+                      className="group relative overflow-hidden"
+                    >
+                      <div className="absolute inset-0 bg-white/20 translate-x-full group-hover:translate-x-0 transition-transform"></div>
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 ml-2 relative z-10 animate-spin" />
+                          <span className="relative z-10">جاري الحفظ...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="relative z-10">حفظ والتالي</span>
+                          <TrendingUp className="w-4 h-4 mr-2 relative z-10 group-hover:translate-x-1 transition-transform" />
+                        </>
+                      )}
                     </Button>
                   ) : (
                     <Button 
                       variant="primary" 
-                      type="submit"
+                      type="button"
+                      onClick={handleFinishAuthorizationFlow}
+                      disabled={isSubmitting}
                       className="group relative overflow-hidden"
                     >
                       <div className="absolute inset-0 bg-white/20 translate-x-full group-hover:translate-x-0 transition-transform"></div>
-                      <CheckCircle className="w-4 h-4 ml-2 relative z-10 group-hover:scale-110 transition-transform" />
-                      <span className="relative z-10">حفظ التفويض</span>
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 ml-2 relative z-10 animate-spin" />
+                          <span className="relative z-10">جاري الحفظ...</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="w-4 h-4 ml-2 relative z-10 group-hover:scale-110 transition-transform" />
+                          <span className="relative z-10">حفظ وإنهاء</span>
+                        </>
+                      )}
                     </Button>
                   )}
                 </div>
@@ -1432,14 +1974,39 @@ export function Authorizations() {
       {/* AlertDialog Component */}
       <DialogComponent />
 
-      <VehicleEquipmentInfoDialog
-        isOpen={showVehicleInfoDialog}
-        onClose={() => setShowVehicleInfoDialog(false)}
-        vehiclePlateName={selectedPlateName}
-        requestInfo={selectedPlateName ? getVehicleInfoRequestInfo(selectedPlateName) : null}
-        data={vehicleEquipment.data}
-        isLoading={vehicleEquipment.isLoading}
-        error={vehicleEquipment.error}
+      {/* OTP Dialog */}
+      <OTPDialog
+        isOpen={showOTPDialog}
+        onClose={() => setShowOTPDialog(false)}
+        onSubmit={handleOTPSubmit}
+        authorizationNumber={otpAuthNumber}
+      />
+
+      {/* Renew Confirmation Dialog */}
+      <RenewConfirmDialog
+        isOpen={showRenewDialog}
+        onClose={() => {
+          setShowRenewDialog(false);
+          setRenewAuthData(null);
+        }}
+        onConfirm={confirmRenewAuthorization}
+        vehicleName={renewAuthData?.vehicle || ''}
+        authNumber={renewAuthData?.authNumber || ''}
+      />
+
+      {/* Cancel Authorization Dialog */}
+      <CancelAuthorizationDialog
+        isOpen={showCancelDialog}
+        onClose={() => {
+          setShowCancelDialog(false);
+          setCancelAuthData(null);
+        }}
+        onConfirm={confirmCancelAuthorization}
+        vehicleName={cancelAuthData?.vehicle || ''}
+        authNumber={cancelAuthData?.authNumber || ''}
+        startDate={cancelAuthData?.startDate || ''}
+        endDate={cancelAuthData?.endDate || ''}
+        isLoading={cancellingId === cancelAuthData?.id}
       />
     </div>
   );

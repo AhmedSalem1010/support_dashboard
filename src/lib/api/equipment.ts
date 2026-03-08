@@ -33,7 +33,9 @@ function buildParams(params?: EquipmentInventoryFetchParams): Record<string, str
   if (params.vehiclePlateName) query.vehiclePlateName = params.vehiclePlateName;
   if (params.vehicleSerialNumber) query.vehicleSerialNumber = params.vehicleSerialNumber;
   if (params.driverName) query.driverName = params.driverName;
+  if (params.userDriverName) query.userDriverName = params.userDriverName;
   if (params.supervisorName) query.supervisorName = params.supervisorName;
+  if (params.createdAt) query.createdAt = params.createdAt;
   return query;
 }
 
@@ -121,4 +123,81 @@ export async function createVehicleEquipmentInventory(
     dto
   );
   return data;
+}
+
+/**
+ * تحويل base64 إلى File object
+ */
+function base64ToFile(base64: string, filename: string): File {
+  const arr = base64.split(',');
+  const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new File([u8arr], filename, { type: mime });
+}
+
+/**
+ * رفع صور/فيديو فحص المعدات إلى الباك اند
+ */
+export async function uploadEquipmentInventoryImages(
+  vehicleEquipmentInventoryId: string,
+  images?: File[],
+  video?: File | null
+): Promise<{ success: boolean; message?: string }> {
+  console.log('🔍 uploadEquipmentInventoryImages called with:', { 
+    vehicleEquipmentInventoryId, 
+    imageCount: images?.length || 0, 
+    hasVideo: !!video 
+  });
+
+  if (!images?.length && !video) {
+    console.log('⚠️ No files to upload');
+    return { success: true };
+  }
+
+  try {
+    // رفع الصور
+    if (images && images.length > 0) {
+      const formData = new FormData();
+      formData.append('vehicleEquipmentInventoryId', vehicleEquipmentInventoryId);
+      
+      images.forEach((image, index) => {
+        formData.append('images', image);
+        console.log(`📎 Added image ${index + 1}:`, { name: image.name, size: image.size });
+      });
+
+      console.log('📤 Sending POST request to /vehicle-accident-images/upload');
+      const response = await api.post('/vehicle-accident-images/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      console.log('✅ Images upload successful:', response.data);
+    }
+
+    // رفع الفيديو
+    if (video) {
+      const formData = new FormData();
+      formData.append('vehicleEquipmentInventoryId', vehicleEquipmentInventoryId);
+      formData.append('video', video);
+      console.log('📹 Added video:', { name: video.name, size: video.size });
+
+      console.log('📤 Sending POST request to /vehicle-accident-images/upload-video');
+      const response = await api.post('/vehicle-accident-images/upload-video', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      console.log('✅ Video upload successful:', response.data);
+    }
+
+    return { success: true, message: 'تم رفع الملفات بنجاح' };
+  } catch (error) {
+    console.error('❌ Error uploading equipment inventory files:', error);
+    return { success: false, message: 'فشل رفع الملفات' };
+  }
 }

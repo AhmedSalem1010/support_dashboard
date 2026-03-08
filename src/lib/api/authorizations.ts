@@ -7,6 +7,8 @@ import type {
   AuthorizationsApiResponse,
   AuthorizationsFetchParams,
   LastAuthorizationDataResponse,
+  CreateAuthorizationDto,
+  CreateAuthorizationResponse,
 } from '@/types/authorization';
 import { formatDateToISO } from '@/lib/utils/dateUtils';
 import { formatPlateNameForApi } from '@/lib/utils/plateUtils';
@@ -67,7 +69,7 @@ export async function fetchAuthorizations(
 const CANCEL_AUTH_ENDPOINT = `${AUTHORIZATIONS_ENDPOINT}/tamm-system/cancel-authorization`;
 
 export async function cancelAuthorization(vehicleAuthorizationId: string): Promise<void> {
-  const { data: result } = await api.patch(CANCEL_AUTH_ENDPOINT, null, {
+  const { data: result } = await api.patch(CANCEL_AUTH_ENDPOINT, {}, {
     params: { vehicleAuthorizationId },
   });
 
@@ -88,5 +90,51 @@ export async function fetchLastAuthorizationData(
   const { data } = await api.get<LastAuthorizationDataResponse>(LAST_AUTHORIZATION_DATA_ENDPOINT, {
     params: { vehiclePlateName: plate },
   });
+  return data;
+}
+
+/**
+ * إنشاء تفويض جديد
+ * يستدعي: POST /vehicle-authorizations
+ */
+export async function createAuthorization(
+  dto: CreateAuthorizationDto
+): Promise<CreateAuthorizationResponse> {
+  const { data } = await api.post<CreateAuthorizationResponse>(AUTHORIZATIONS_ENDPOINT, dto);
+  return data;
+}
+
+/**
+ * إرسال OTP للتفويض عبر نظام تم (تجديد التفويض)
+ * يستدعي: POST /vehicle-authorizations/tamm-system/send-vehicle-authorization?vehicleAuthorizationId=...
+ */
+export async function sendVehicleAuthorizationOTP(
+  vehicleAuthorizationId: string
+): Promise<{ success: boolean; message: string; data: any; status: number }> {
+  const { data } = await api.post<{ success: boolean; message: string; data: any; status: number }>(
+    `${AUTHORIZATIONS_ENDPOINT}/tamm-system/send-vehicle-authorization`,
+    {},
+    {
+      params: { vehicleAuthorizationId },
+    }
+  );
+  return data;
+}
+
+/**
+ * تأكيد OTP للتفويض
+ * يستدعي: POST /vehicle-authorizations/tamm-system/otp/verify?vehicleAuthorizationId=...&otp=...
+ */
+export async function verifyVehicleAuthorizationOTP(
+  vehicleAuthorizationId: string,
+  otp: string
+): Promise<{ success: boolean; message: string; data: any; status: number }> {
+  const { data } = await api.post<{ success: boolean; message: string; data: any; status: number }>(
+    `${AUTHORIZATIONS_ENDPOINT}/tamm-system/otp/verify`,
+    {},
+    {
+      params: { vehicleAuthorizationId, otp },
+    }
+  );
   return data;
 }

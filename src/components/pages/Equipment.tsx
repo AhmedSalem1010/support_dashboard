@@ -1,18 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Package, Filter, Download, X, Eye, CheckCircle, XCircle, AlertCircle, AlertTriangle, Car, User, Calendar, Shield, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2, FileText, ClipboardCheck, Search } from 'lucide-react';
+import { Package, Filter, Download, X, Eye, CheckCircle, XCircle, AlertCircle, AlertTriangle, Car, User, Calendar, Shield, Loader2, FileText, ClipboardCheck, Search } from 'lucide-react';
 import InspectionModal from '@/components/pages/Inspection';
 import EquipmentInventoryModal from '@/components/pages/EquipmentInventoryModal';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
+import { Pagination } from '@/components/ui/Pagination';
 import { fetchEquipmentInventories } from '@/lib/api/equipment';
 import type { VehicleEquipmentInventory, EquipmentInventoryStatus, EquipmentInventoryType } from '@/types/equipment';
 import { EQUIPMENT_INVENTORY_STATUS_LABELS, ITEM_INVENTORY_STATUS_LABELS, getLabel } from '@/lib/enums';
 import { useNotificationsContext } from '@/components/ui/Notifications';
 import { Portal } from '@/components/ui/Portal';
+import { DriverSearchFilter } from '@/components/ui/DriverSearchFilter';
 
 export function Equipment() {
   const [inventories, setInventories] = useState<VehicleEquipmentInventory[]>([]);
@@ -27,9 +29,11 @@ export function Equipment() {
     vehiclePlateName: '',
     vehicleSerialNumber: '',
     driverName: '',
+    driverTypeFilter: '', // 'employee' للموظف أو 'supervisor' لمشرف الفريق
     supervisorName: '',
     equipmentInventoryStatus: '',
     equipmentInventoryType: '',
+    createdAt: '',
   });
   const [showInspectionModal, setShowInspectionModal] = useState(false);
   const [showInventoryModal, setShowInventoryModal] = useState(false);
@@ -42,9 +46,11 @@ export function Equipment() {
       vehiclePlateName: '',
       vehicleSerialNumber: '',
       driverName: '',
+      driverTypeFilter: '',
       supervisorName: '',
       equipmentInventoryStatus: '',
       equipmentInventoryType: '',
+      createdAt: '',
     });
     setPage(1);
   };
@@ -61,8 +67,10 @@ export function Equipment() {
         equipmentInventoryType: (filters.equipmentInventoryType as EquipmentInventoryType) || undefined,
         vehiclePlateName: filters.vehiclePlateName || undefined,
         vehicleSerialNumber: filters.vehicleSerialNumber || undefined,
-        driverName: filters.driverName || undefined,
+        driverName: (filters.driverTypeFilter === 'supervisor' && filters.driverName) || undefined,
+        userDriverName: (filters.driverTypeFilter === 'employee' && filters.driverName) || undefined,
         supervisorName: filters.supervisorName || undefined,
+        createdAt: filters.createdAt || undefined,
       });
       setInventories(response.data); setMeta(response.meta);
     } catch (err) {
@@ -117,10 +125,11 @@ export function Equipment() {
   const columns = [
     { key: 'id', label: 'رقم الجرد', render: (_: unknown, row: any) => (<div className="flex items-center gap-3"><div className="relative"><div className="w-12 h-12 bg-gradient-to-br from-[#09b9b5]/10 to-[#09b9b5]/20 rounded-xl flex items-center justify-center border border-[#09b9b5]/20"><Package className="w-5 h-5 text-[#09b9b5]" /></div><div className="absolute -bottom-1 -right-1 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-md"><CheckCircle className="w-3 h-3 text-green-500" /></div></div><div><p className="font-bold text-gray-900">{row.id.slice(0, 8)}</p><p className="text-xs text-gray-500">{getTypeBadge(row.equipmentInventoryType).label}</p></div></div>) },
     { key: 'vehicleAuthorization', label: 'المركبة', render: (_: unknown, row: any) => (<div className="flex items-center gap-2"><div className="p-2 bg-blue-50 rounded-lg"><Car className="w-4 h-4 text-blue-600" /></div><span className="font-semibold">{row.vehicleAuthorization?.vehicle?.plateName ?? '—'}</span></div>) },
-    { key: 'supervisor', label: 'المشرف والسائق', render: (_: unknown, row: any) => (<div className="space-y-1"><div className="flex items-center gap-2"><Shield className="w-4 h-4 text-gray-400" /><span className="text-sm font-medium">{row.supervisor?.name}</span></div><div className="flex items-center gap-2"><User className="w-4 h-4 text-gray-400" /><span className="text-xs text-gray-500">{row.vehicleAuthorization?.userDriver?.name ?? '—'}</span></div></div>) },
+    { key: 'supervisor', label: 'المشرف والسائق', render: (_: unknown, row: any) => { const driverName = row.vehicleAuthorization?.userDriver?.name || row.vehicleAuthorization?.driver?.name; const supervisorName = row.vehicleAuthorization?.supervisor?.name || row.supervisor?.name; return (<div className="space-y-1"><div className="flex items-center gap-2"><Shield className="w-4 h-4 text-gray-400" /><span className="text-sm font-medium">{supervisorName || '—'}</span></div><div className="flex items-center gap-2"><User className="w-4 h-4 text-gray-400" /><span className="text-xs text-gray-500">{driverName ?? '—'}</span></div></div>); } },
     { key: 'items', label: 'الأصناف', render: (_: unknown, row: any) => { const s = calculateItemsStats(row.items); return (<div className="flex gap-2"><span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded-lg text-xs font-semibold"><CheckCircle className="w-3 h-3" />{s.ok}</span><span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-50 text-orange-700 rounded-lg text-xs font-semibold"><AlertTriangle className="w-3 h-3" />{s.extra}</span><span className="inline-flex items-center gap-1 px-2 py-1 bg-red-50 text-red-700 rounded-lg text-xs font-semibold"><XCircle className="w-3 h-3" />{s.missing}</span></div>); } },
     { key: 'equipmentInventoryType', label: 'النوع', render: (value: unknown) => (<Badge variant={getTypeBadge(value as EquipmentInventoryType).variant}>{getTypeBadge(value as EquipmentInventoryType).label}</Badge>) },
     { key: 'equipmentInventoryStatus', label: 'الحالة', render: (value: unknown) => { const s = getStatusBadge(value as EquipmentInventoryStatus); const Icon = value === 'check' ? CheckCircle : value === 'not_check' ? AlertCircle : value === 'rejected' ? XCircle : CheckCircle; return (<Badge variant={s.variant} className="flex items-center gap-1.5"><Icon className="w-3.5 h-3.5" />{s.label}</Badge>); } },
+    { key: 'createdAt', label: 'تاريخ الإنشاء', render: (value: unknown) => { const date = new Date(value as string); return (<div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-gray-400" /><span className="text-sm">{date.toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' })}</span></div>); } },
     { key: 'actions', label: 'الإجراءات', render: (_: unknown, row: any) => (<div className="flex items-center gap-1"><button onClick={(e) => { e.stopPropagation(); setSelectedInventory(row as VehicleEquipmentInventory); }} className="p-2 hover:bg-blue-50 rounded-lg transition-colors group" title="عرض التفاصيل"><Eye className="w-4 h-4 text-gray-400 group-hover:text-blue-600" /></button></div>) },
   ];
 
@@ -249,10 +258,12 @@ export function Equipment() {
                 <label className="block text-sm font-medium text-[#4d647c] mb-2">الرقم التسلسلي للمركبة</label>
                 <input type="text" value={filters.vehicleSerialNumber} onChange={(e) => updateFilter('vehicleSerialNumber', e.target.value)} placeholder="رقم التسلسل" className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white" />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-[#4d647c] mb-2">اسم السائق</label>
-                <input type="text" value={filters.driverName} onChange={(e) => updateFilter('driverName', e.target.value)} placeholder="اسم السائق" className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white" />
-              </div>
+              <DriverSearchFilter
+                driverTypeFilter={filters.driverTypeFilter}
+                driverName={filters.driverName}
+                onDriverTypeChange={(value) => updateFilter('driverTypeFilter', value)}
+                onDriverNameChange={(value) => updateFilter('driverName', value)}
+              />
               <div>
                 <label className="block text-sm font-medium text-[#4d647c] mb-2">اسم المشرف</label>
                 <input type="text" value={filters.supervisorName} onChange={(e) => updateFilter('supervisorName', e.target.value)} placeholder="اسم المشرف" className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white" />
@@ -278,6 +289,10 @@ export function Equipment() {
                   <option value="monthly_check">فحص شهري</option>
                   <option value="yearly_check">فحص سنوي</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#4d647c] mb-2">تاريخ الإنشاء</label>
+                <input type="date" value={filters.createdAt} onChange={(e) => updateFilter('createdAt', e.target.value)} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white" />
               </div>
               {hasActiveFilters && (
                 <div className="sm:col-span-2 lg:col-span-6 flex justify-end">
@@ -332,7 +347,7 @@ export function Equipment() {
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <div className="p-2 bg-purple-50 rounded-lg"><Shield className="w-4 h-4 text-purple-600" /></div>
-                      <div><p className="text-xs text-gray-500">المشرف</p><p className="font-semibold text-gray-900">{inventory.supervisor.name}</p></div>
+                      <div><p className="text-xs text-gray-500">المشرف</p><p className="font-semibold text-gray-900">{inventory.vehicleAuthorization?.supervisor?.name || inventory.supervisor?.name || '—'}</p></div>
                     </div>
                   </div>
                   <div className="p-3 bg-gray-50 rounded-xl space-y-2">
@@ -359,32 +374,7 @@ export function Equipment() {
         </div>
       ))}
 
-      {/* Pagination */}
-      {!isLoading && !error && meta && meta.totalPages > 1 && (
-        <Card>
-          <div className="flex items-center justify-center px-6 py-4">
-            <nav className="flex items-center gap-1" aria-label="ترقيم الصفحات">
-              <button type="button" onClick={() => setPage(1)} disabled={!meta.hasPreviousPage} className="p-2 rounded-xl text-gray-500 hover:bg-[#09b9b5]/10 hover:text-[#09b9b5] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-all duration-200" title="الأولى"><ChevronsRight className="w-5 h-5" /></button>
-              <button type="button" onClick={() => setPage(page - 1)} disabled={!meta.hasPreviousPage} className="p-2 rounded-xl text-gray-500 hover:bg-[#09b9b5]/10 hover:text-[#09b9b5] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-all duration-200" title="السابق"><ChevronRight className="w-5 h-5" /></button>
-              <div className="flex items-center gap-1 mx-2">
-                {Array.from({ length: meta.totalPages }, (_, i) => i + 1)
-                  .filter((p) => { if (meta.totalPages <= 7) return true; if (p === 1 || p === meta.totalPages) return true; if (Math.abs(p - meta.page) <= 2) return true; return false; })
-                  .map((p, idx, arr) => {
-                    const prev = arr[idx - 1]; const showEllipsis = prev != null && p - prev > 1;
-                    return (
-                      <span key={p} className="flex items-center gap-0.5">
-                        {showEllipsis && <span className="px-2 text-gray-400 text-sm">...</span>}
-                        <button type="button" onClick={() => setPage(p)} className={`min-w-[2.25rem] h-9 px-3 rounded-xl text-sm font-medium transition-all duration-200 ${meta.page === p ? 'bg-[#09b9b5] text-white shadow-md shadow-[#09b9b5]/25' : 'text-gray-600 hover:bg-[#09b9b5]/10 hover:text-[#09b9b5]'}`}>{p}</button>
-                      </span>
-                    );
-                  })}
-              </div>
-              <button type="button" onClick={() => setPage(page + 1)} disabled={!meta.hasNextPage} className="p-2 rounded-xl text-gray-500 hover:bg-[#09b9b5]/10 hover:text-[#09b9b5] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-all duration-200" title="التالي"><ChevronLeft className="w-5 h-5" /></button>
-              <button type="button" onClick={() => setPage(meta.totalPages)} disabled={!meta.hasNextPage} className="p-2 rounded-xl text-gray-500 hover:bg-[#09b9b5]/10 hover:text-[#09b9b5] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-all duration-200" title="الأخيرة"><ChevronsLeft className="w-5 h-5" /></button>
-            </nav>
-          </div>
-        </Card>
-      )}
+      {meta && <Pagination meta={meta} onPageChange={setPage} />}
 
       {/* Details Modal */}
       {selectedInventory && (
@@ -420,7 +410,7 @@ export function Equipment() {
             <div className="p-6 space-y-6">
 
               {/* Quick Info */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl border border-blue-100">
                   <Car className="w-6 h-6 text-blue-600 mx-auto mb-2" />
                   <p className="text-xs text-gray-600 mb-1">المركبة</p>
@@ -429,17 +419,22 @@ export function Equipment() {
                 <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100/50 rounded-xl border border-green-100">
                   <User className="w-6 h-6 text-green-600 mx-auto mb-2" />
                   <p className="text-xs text-gray-600 mb-1">السائق</p>
-                  <p className="text-sm font-bold text-gray-900">{selectedInventory.vehicleAuthorization?.userDriver?.name ?? '—'}</p>
+                  <p className="text-sm font-bold text-gray-900">{selectedInventory.vehicleAuthorization?.userDriver?.name || selectedInventory.vehicleAuthorization?.driver?.name || '—'}</p>
                 </div>
                 <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl border border-purple-100">
                   <Shield className="w-6 h-6 text-purple-600 mx-auto mb-2" />
                   <p className="text-xs text-gray-600 mb-1">المشرف</p>
-                  <p className="text-sm font-bold text-gray-900">{selectedInventory.supervisor.name}</p>
+                  <p className="text-sm font-bold text-gray-900">{selectedInventory.vehicleAuthorization?.supervisor?.name || selectedInventory.supervisor?.name || '—'}</p>
                 </div>
                 <div className="text-center p-4 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-xl border border-orange-100">
                   <FileText className="w-6 h-6 text-orange-600 mx-auto mb-2" />
                   <p className="text-xs text-gray-600 mb-1">عدد الأصناف</p>
                   <p className="text-lg font-bold text-gray-900">{selectedInventory.items?.length ?? 0}</p>
+                </div>
+                <div className="text-center p-4 bg-gradient-to-br from-indigo-50 to-indigo-100/50 rounded-xl border border-indigo-100">
+                  <Calendar className="w-6 h-6 text-indigo-600 mx-auto mb-2" />
+                  <p className="text-xs text-gray-600 mb-1">تاريخ الإنشاء</p>
+                  <p className="text-sm font-bold text-gray-900">{new Date(selectedInventory.createdAt).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
                 </div>
               </div>
 

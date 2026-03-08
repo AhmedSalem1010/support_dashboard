@@ -70,6 +70,7 @@ export interface VehicleAuthorization {
   driver: User | null;
   userDriver: User;
   userDriverReceivedFrom: User;
+  supervisor?: User;
 }
 
 export interface VehicleEquipmentInventory {
@@ -113,7 +114,9 @@ export interface EquipmentInventoryFetchParams {
   vehiclePlateName?: string;
   vehicleSerialNumber?: string;
   driverName?: string;
+  userDriverName?: string;
   supervisorName?: string;
+  createdAt?: string;
 }
 
 /** عنصر من استجابة vehicle-info (معلومات معدات المركبة حسب اللوحة) */

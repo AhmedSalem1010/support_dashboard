@@ -4,11 +4,12 @@ import { useState, useEffect, type FormEvent, type ChangeEvent } from "react";
 import { useVehiclesList } from "@/hooks/useVehiclesList";
 import { useLastAuthorizationData } from "@/hooks/useLastAuthorizationData";
 import { useVehicleEquipmentInfo } from "@/hooks/useVehicleEquipmentInfo";
-import { checkEquipmentInventoryStatus } from "@/lib/api/equipment";
+import { checkEquipmentInventoryStatus, uploadEquipmentInventoryImages } from "@/lib/api/equipment";
 import { formatPlateNameForApi } from "@/lib/utils/plateUtils";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { useNotificationsContext } from "@/components/ui/Notifications";
 import { Portal } from "@/components/ui/Portal";
+import VehicleDriverInfoCard from "@/components/ui/VehicleDriverInfoCard";
 
 // --- Types ---
 interface InspectionModalProps {
@@ -148,7 +149,7 @@ export default function InspectionModal({ isOpen, onClose }: InspectionModalProp
   const lastAuth = useLastAuthorizationData(selectedPlateName);
   const { data: vehicleEquipmentData } = useVehicleEquipmentInfo(selectedPlateName);
   const selectedVehicleData = selectedVehicle ? vehicles.find((v) => v.id === selectedVehicle) : null;
-  const { success: showSuccess, error: showError } = useNotificationsContext();
+  const { success: showSuccess, error: showError, loading: showLoading, removeNotification } = useNotificationsContext();
 
   const equipmentLabels: Record<EquipmentKey, string> = {
     bakium: "باكيوم", galandar: "قلندر", blicher: "بليشر",
@@ -194,6 +195,7 @@ export default function InspectionModal({ isOpen, onClose }: InspectionModalProp
         itemStatus: equipment[key] ? "usable" : "not_usable",
       }));
       try {
+        // الخطوة 1: حفظ الفحص أولاً
         const res = await checkEquipmentInventoryStatus({
           ...(vehicleAuthorizationId ? { vhecleAuthorizationId: vehicleAuthorizationId } : { vehiclePlateName: formatPlateNameForApi(selectedPlateName) }),
           equipmentInvetoryCheckStatus,
@@ -201,7 +203,27 @@ export default function InspectionModal({ isOpen, onClose }: InspectionModalProp
           equipmentInventoryNote: notes || undefined,
           equipmentInventoryDescription: supervisor ? `المشرف: ${supervisor}` : undefined,
         });
-        if (res.success) {
+        
+        if (res.success && res.data?.id) {
+          // الخطوة 2: رفع الصور والفيديو مع UUID الفحص
+          if (vehicleImages.length > 0 || vehicleVideo) {
+            const loadingId = showLoading("جاري رفع الملفات...", "");
+            try {
+              const uploadResult = await uploadEquipmentInventoryImages(
+                res.data.id,
+                vehicleImages.length > 0 ? vehicleImages : undefined,
+                vehicleVideo
+              );
+              removeNotification(loadingId);
+              if (!uploadResult.success) {
+                showError("تحذير", "تم حفظ الفحص ولكن فشل رفع بعض الملفات");
+              }
+            } catch (uploadErr) {
+              removeNotification(loadingId);
+              showError("تحذير", "تم حفظ الفحص ولكن فشل رفع الملفات");
+            }
+          }
+          
           setSubmitted(true);
           showSuccess("تم حفظ الفحص بنجاح", res.message);
           setTimeout(() => { setSubmitted(false); onClose(); }, 2000);
@@ -304,41 +326,47 @@ export default function InspectionModal({ isOpen, onClose }: InspectionModalProp
                   />
 
                   {selectedVehicle && (
-                    <div style={{ marginTop: 16, width: "100%" }}>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 12 }}>بيانات المركبة والسائق</p>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, width: "100%", minWidth: 0 }}>
-                        <div style={{ background: "#f3f4f6", borderRadius: 12, padding: 14, border: "1px solid #e5e7eb", minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                            <CarIcon />
-                            <span style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>المركبة</span>
-                          </div>
-                          {selectedVehicleData ? (
-                            <>
-                              <p style={{ fontSize: 14, fontWeight: 600, color: "#1f2937", margin: "0 0 4px" }}>{selectedVehicleData.plateName || selectedVehicleData.plateNumber}</p>
-                              <p style={{ fontSize: 13, color: "#6b7280", margin: "0 0 4px" }}>{selectedVehicleData.manufacturer} {selectedVehicleData.model} - {selectedVehicleData.year}</p>
-                              <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>{selectedVehicleData.vehicleType || "—"}</p>
-                            </>
-                          ) : (
-                            <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>—</p>
-                          )}
-                        </div>
-                        <div style={{ background: "#f3f4f6", borderRadius: 12, padding: 14, border: "1px solid #e5e7eb", minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                            <UserIcon />
-                            <span style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>السائق</span>
-                          </div>
-                          {lastAuth.isLoading ? (
-                            <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>جاري التحميل...</p>
-                          ) : (
-                            <p style={{ fontSize: 14, fontWeight: 600, color: "#1f2937", margin: 0 }}>{lastAuth.data?.driver?.name ?? "—"}</p>
-                          )}
-                        </div>
+                    <VehicleDriverInfoCard
+                      vehicleData={selectedVehicleData}
+                      lastAuthData={lastAuth.data}
+                      isLoading={lastAuth.isLoading}
+                    />
+                  )}
+
+                  {/* تحذير إذا كانت السيارة غير مفوضة */}
+                  {selectedVehicle && lastAuth.data && lastAuth.data.authorizationStatus !== 'authorized' && (
+                    <div style={{ background: "linear-gradient(135deg, #fef2f2, #fee2e2)", border: "2px solid #fca5a5", borderRadius: 16, padding: 20, marginTop: 16 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+                        <div style={{ width: 40, height: 40, background: "#dc2626", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: 20, fontWeight: 800 }}>⚠️</div>
+                        <h3 style={{ fontSize: 16, fontWeight: 800, color: "#991b1b", margin: 0 }}>السيارة غير مفوضة</h3>
                       </div>
+                      <p style={{ fontSize: 14, color: "#7f1d1d", margin: 0, lineHeight: 1.6 }}>لا يمكن إجراء الفحص على هذه السيارة لأنها غير مفوضة حالياً. يرجى التأكد من حالة التفويض أولاً.</p>
                     </div>
+                  )}
+
+                  {/* تحذير إذا لم تتحقق شروط عدد العمال واسم الفريق */}
+                  {selectedVehicle && lastAuth.data && lastAuth.data.authorizationStatus === 'authorized' && selectedVehicleData && (
+                    ((selectedVehicleData.workerCount ?? 0) === 0 || !selectedVehicleData.teamName?.includes('CL')) && (
+                      <div style={{ background: "linear-gradient(135deg, #fef2f2, #fee2e2)", border: "2px solid #fca5a5", borderRadius: 16, padding: 20, marginTop: 16 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+                          <div style={{ width: 40, height: 40, background: "#dc2626", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: 20, fontWeight: 800 }}>⚠️</div>
+                          <h3 style={{ fontSize: 16, fontWeight: 800, color: "#991b1b", margin: 0 }}>لا يمكن إجراء الفحص</h3>
+                        </div>
+                        <p style={{ fontSize: 14, color: "#7f1d1d", margin: 0, lineHeight: 1.6 }}>
+                          {(selectedVehicleData.workerCount ?? 0) === 0 && !selectedVehicleData.teamName?.includes('CL') 
+                            ? 'لا يمكن إجراء الفحص على هذه السيارة لأنه لا يوجد عمال (عدد العمال = 0) واسم الفريق لا يحتوي على "CL". يرجى التأكد من حالة التفويض أولاً.'
+                            : (selectedVehicleData.workerCount ?? 0) === 0 
+                            ? 'لا يمكن إجراء الفحص على هذه السيارة لأنه لا يوجد عمال (عدد العمال = 0). يرجى التأكد من تعيين العمال للمركبة أولاً.'
+                            : 'لا يمكن إجراء الفحص على هذه السيارة لأن اسم الفريق لا يحتوي على "CL". يرجى التأكد من اسم الفريق أولاً.'
+                          }
+                        </p>
+                      </div>
+                    )
                   )}
                 </div>
 
                 {/* Equipment Checklist */}
+                {selectedVehicle && lastAuth.data && lastAuth.data.authorizationStatus === 'authorized' && selectedVehicleData && (selectedVehicleData.workerCount ?? 0) > 0 && selectedVehicleData.teamName?.includes('CL') && (
                 <div style={{ background: "#f9fafb", borderRadius: 16, padding: 22, border: "1px solid #e5e7eb" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -364,8 +392,10 @@ export default function InspectionModal({ isOpen, onClose }: InspectionModalProp
                     ))}
                   </div>
                 </div>
+                )}
 
                 {/* Media */}
+                {selectedVehicle && lastAuth.data && lastAuth.data.authorizationStatus === 'authorized' && selectedVehicleData && (selectedVehicleData.workerCount ?? 0) > 0 && selectedVehicleData.teamName?.includes('CL') && (
                 <div style={{ background: "#f9fafb", borderRadius: 16, padding: 22, border: "1px solid #e5e7eb" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
                     <div style={{ width: 8, height: 28, background: "linear-gradient(180deg, #8b5cf6, #a78bfa)", borderRadius: 99 }} />
@@ -387,10 +417,12 @@ export default function InspectionModal({ isOpen, onClose }: InspectionModalProp
                       files={equipmentWorkerVideo ? [equipmentWorkerVideo] : []} onRemove={() => setEquipmentWorkerVideo(null)} color="#f59e0b" />
                   </div>
                 </div>
+                )}
               </>
             ) : (
               <>
                 {/* Accommodation Media */}
+                {selectedVehicle && lastAuth.data && lastAuth.data.authorizationStatus === 'authorized' && selectedVehicleData && (selectedVehicleData.workerCount ?? 0) > 0 && selectedVehicleData.teamName?.includes('CL') && (
                 <div style={{ background: "#f9fafb", borderRadius: 16, padding: 22, border: "1px solid #e5e7eb" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
                     <div style={{ width: 8, height: 28, background: "linear-gradient(180deg, #8b5cf6, #a78bfa)", borderRadius: 99 }} />
@@ -407,10 +439,12 @@ export default function InspectionModal({ isOpen, onClose }: InspectionModalProp
                       files={accommodationVideo ? [accommodationVideo] : []} onRemove={() => setAccommodationVideo(null)} color="#8b5cf6" />
                   </div>
                 </div>
+                )}
               </>
             )}
 
             {/* Additional Info */}
+            {selectedVehicle && lastAuth.data && lastAuth.data.authorizationStatus === 'authorized' && selectedVehicleData && (selectedVehicleData.workerCount ?? 0) > 0 && selectedVehicleData.teamName?.includes('CL') && (
             <div style={{ background: "#f9fafb", borderRadius: 16, padding: 22, border: "1px solid #e5e7eb" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
                 <div style={{ width: 8, height: 28, background: "linear-gradient(180deg, #3b82f6, #60a5fa)", borderRadius: 99 }} />
@@ -433,8 +467,10 @@ export default function InspectionModal({ isOpen, onClose }: InspectionModalProp
                 </div>
               </div>
             </div>
+            )}
 
             {/* Actions */}
+            {selectedVehicle && lastAuth.data && lastAuth.data.authorizationStatus === 'authorized' && selectedVehicleData && (selectedVehicleData.workerCount ?? 0) > 0 && selectedVehicleData.teamName?.includes('CL') && (
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, paddingTop: 8 }}>
               <button type="button" onClick={onClose}
                 style={{ padding: "10px 24px", borderRadius: 10, border: "1.5px solid #e5e7eb", fontSize: 14, fontWeight: 700, color: "#6b7280", fontFamily: "inherit", background: "white", cursor: "pointer" }}>
@@ -446,6 +482,7 @@ export default function InspectionModal({ isOpen, onClose }: InspectionModalProp
                 حفظ الفحص
               </button>
             </div>
+            )}
           </form>
         </div>
 

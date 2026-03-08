@@ -1,16 +1,20 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Plus, AlertTriangle, Car, Calendar, User, Search, Filter, Download, X, Eye, Edit, MapPin, Clock, FileText, Image as ImageIcon, Trash2, TrendingDown, TrendingUp, Activity } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
+import { Pagination } from '@/components/ui/Pagination';
 import { useVehiclesList } from '@/hooks/useVehiclesList';
 import { useLastAuthorizationData } from '@/hooks/useLastAuthorizationData';
+import { useAccidentsList } from '@/hooks/useAccidentsList';
+import { useAccidentsStatistics } from '@/hooks/useAccidentsStatistics';
 import { VehicleDriverSummary } from '@/components/ui/VehicleDriverSummary';
 import { ACCIDENT_STATUS_LABELS, ACCIDENT_SEVERITY_LABELS, statusToArabic } from '@/lib/enums';
 import { Portal } from '@/components/ui/Portal';
+import type { VehicleAccidentItem } from '@/types/accidents';
 
 export function Accidents() {
   const { vehicleOptions } = useVehiclesList();
@@ -23,6 +27,9 @@ export function Accidents() {
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [accidentImages, setAccidentImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [listPage, setListPage] = useState(1);
+  const [listLimitChoice, setListLimitChoice] = useState(10);
+  const effectiveLimit = listLimitChoice;
   const [formData, setFormData] = useState({
     accidentNumber: '',
     vehicleId: '',
@@ -36,85 +43,64 @@ export function Accidents() {
   });
   const selectedPlateName = vehicleOptions.find((o) => o.value === formData.vehicleId)?.plateName ?? null;
   const lastAuth = useLastAuthorizationData(selectedPlateName);
+  
+  const { data: accidentsListData, meta: accidentsMeta, isLoading: accidentsLoading, error: accidentsError, refetch: refetchAccidents } = useAccidentsList({
+    page: listPage,
+    limit: effectiveLimit,
+    vehiclePlateName: searchTerm.trim() || undefined,
+  });
+  const { data: statisticsData, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useAccidentsStatistics();
+  
+  useEffect(() => {
+    setListPage(1);
+  }, [searchTerm, filterSeverity, filterStatus, effectiveLimit]);
 
-  const accidents = [
-    { 
-      id: 1, 
-      accidentNumber: 'ACC-2024-001', 
-      vehicle: 'ABC 1234',
-      vehicleModel: 'تويوتا كامري', 
-      driver: 'محمد أحمد', 
-      date: '2024-01-08',
-      time: '10:30 AM',
-      location: 'طريق الملك فهد - الرياض',
-      severity: 'بسيط', 
-      status: 'مغلق',
-      estimatedCost: 5000,
-      images: 3,
+  function mapAccidentItemToRow(item: VehicleAccidentItem) {
+    const vehicle = item.vehicleAuthorization?.vehicle;
+    const driver = item.vehicleAuthorization?.driver || item.vehicleAuthorization?.userDriver;
+    
+    // استخراج اسم المدينة من accidentLocation (مثل: "مدينة الرياض/الحي" -> "الرياض")
+    const locationParts = item.accidentLocation?.split('/') || [];
+    const cityName = locationParts[0]?.replace('مدينة ', '').replace('محافظة ', '') || '—';
+    
+    return {
+      id: item.id,
+      _raw: item,
+      accidentNumber: item.accidentTammNumber,
+      vehicle: vehicle?.plateName || `مركبة ${item.vehicleId.slice(0, 8)}...`,
+      vehicleModel: vehicle?.vehicleType || item.accidentTypeDesc || '—',
+      driver: driver?.name || 'غير محدد',
+      date: item.accidentDate ? new Date(item.accidentDate).toLocaleDateString('ar-SA') : '—',
+      time: item.accidentTime || '—',
+      location: cityName,
+      severity: item.accidentSeverity ? ACCIDENT_SEVERITY_LABELS[item.accidentSeverity as keyof typeof ACCIDENT_SEVERITY_LABELS] || item.accidentSeverity : 'غير محدد',
+      status: item.accidentStatus ? ACCIDENT_STATUS_LABELS[item.accidentStatus as keyof typeof ACCIDENT_STATUS_LABELS] || item.accidentStatus : 'غير محدد',
+      estimatedCost: item.accidentCost ? parseFloat(item.accidentCost) : 0,
+      images: 0,
       injuries: 'لا يوجد',
-    },
-    { 
-      id: 2, 
-      accidentNumber: 'ACC-2024-002', 
-      vehicle: 'XYZ 5678',
-      vehicleModel: 'هوندا أكورد',
-      driver: 'عبدالله سعيد', 
-      date: '2024-01-12',
-      time: '02:15 PM',
-      location: 'طريق الخرج - الرياض',
-      severity: 'متوسط', 
-      status: 'قيد المتابعة',
-      estimatedCost: 15000,
-      images: 5,
-      injuries: 'إصابات بسيطة',
-    },
-    { 
-      id: 3, 
-      accidentNumber: 'ACC-2024-003', 
-      vehicle: 'DEF 9012',
-      vehicleModel: 'نيسان التيما',
-      driver: 'سعيد محمود', 
-      date: '2024-01-20',
-      time: '08:45 AM',
-      location: 'طريق المطار - الرياض',
-      severity: 'بسيط', 
-      status: 'مغلق',
-      estimatedCost: 3500,
-      images: 2,
-      injuries: 'لا يوجد',
-    },
-    { 
-      id: 4, 
-      accidentNumber: 'ACC-2024-004', 
-      vehicle: 'GHI 3456',
-      vehicleModel: 'فورد إكسبلورر',
-      driver: 'أحمد عبدالله', 
-      date: '2024-02-01',
-      time: '05:20 PM',
-      location: 'طريق الدمام - الخبر',
-      severity: 'خطير', 
-      status: 'قيد المتابعة',
-      estimatedCost: 45000,
-      images: 8,
-      injuries: 'إصابات متوسطة',
-    },
-  ];
+    };
+  }
+  const accidents = useMemo(() => accidentsListData.map(mapAccidentItemToRow), [accidentsListData]);
 
-  const monthData = [
-    { month: 'يناير', count: 3 },
-    { month: 'فبراير', count: 1 },
-    { month: 'مارس', count: 2 },
-    { month: 'أبريل', count: 1 },
-    { month: 'مايو', count: 1 },
-    { month: 'يونيو', count: 5 },
-  ];
-  const maxCount = Math.max(...monthData.map((m) => m.count));
+  const monthData = useMemo(() => {
+    if (!statisticsData?.accidentsByMonth) return [];
+    return statisticsData.accidentsByMonth.map((item) => ({
+      month: item.monthName,
+      count: item.count,
+    }));
+  }, [statisticsData]);
+  const maxCount = monthData.length > 0 ? Math.max(...monthData.map((m) => m.count)) : 1;
 
-  const severityDistribution = [
-    { label: 'بسيطة', count: 7, percent: 58, color: 'bg-[#00a287]' },
-    { label: 'متوسطة', count: 4, percent: 33, color: 'bg-[#f57c00]' },
-    { label: 'خطيرة', count: 1, percent: 9, color: 'bg-[#d32f2f]' },
-  ];
+  const severityDistribution = useMemo(() => {
+    if (!statisticsData?.accidentsBySeverity) return [];
+    const severity = statisticsData.accidentsBySeverity;
+    const total = severity.minor + severity.moderate + severity.severe;
+    return [
+      { label: 'بسيطة', count: severity.minor, percent: total > 0 ? Math.round((severity.minor / total) * 100) : 0, color: 'bg-[#00a287]' },
+      { label: 'متوسطة', count: severity.moderate, percent: total > 0 ? Math.round((severity.moderate / total) * 100) : 0, color: 'bg-[#f57c00]' },
+      { label: 'خطيرة', count: severity.severe, percent: total > 0 ? Math.round((severity.severe / total) * 100) : 0, color: 'bg-[#d32f2f]' },
+    ];
+  }, [statisticsData]);
 
   // Filter accidents
   const filteredAccidents = useMemo(() => {
@@ -130,14 +116,14 @@ export function Accidents() {
       
       return matchesSearch && matchesSeverity && matchesStatus;
     });
-  }, [searchTerm, filterSeverity, filterStatus]);
+  }, [accidents, searchTerm, filterSeverity, filterStatus]);
 
-  // Statistics
+  // Statistics من بيانات الـ API
   const stats = {
-    total: accidents.length,
-    thisMonth: accidents.filter(a => new Date(a.date).getMonth() === new Date().getMonth()).length,
-    inProgress: accidents.filter(a => a.status === 'قيد المتابعة').length,
-    closed: accidents.filter(a => a.status === 'مغلق').length,
+    total: statisticsData?.totalAccidents ?? 0,
+    thisMonth: statisticsData?.thisMonthAccidents ?? 0,
+    inProgress: statisticsData?.openAccidents ?? 0,
+    closed: statisticsData?.closedAccidents ?? 0,
     totalCost: accidents.reduce((sum, a) => sum + a.estimatedCost, 0),
   };
 
@@ -660,13 +646,21 @@ export function Accidents() {
 
       {/* Table/Grid View */}
       {viewMode === 'table' ? (
-        <Card>
-          <Table 
-            columns={columns} 
-            data={filteredAccidents} 
-            onRowClick={(row) => setSelectedAccident(row)} 
-          />
-        </Card>
+        <>
+          <Card>
+            <Table 
+              columns={columns} 
+              data={filteredAccidents} 
+              onRowClick={(row) => setSelectedAccident(row)} 
+            />
+          </Card>
+          {accidentsMeta && (
+            <Pagination
+              meta={accidentsMeta}
+              onPageChange={setListPage}
+            />
+          )}
+        </>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredAccidents.map((accident, index) => (

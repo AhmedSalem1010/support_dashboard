@@ -1,142 +1,97 @@
 'use client';
 
-import { ChevronLeft, ChevronsLeft, ChevronRight, ChevronsRight } from 'lucide-react';
+import { ChevronsRight, ChevronRight, ChevronLeft, ChevronsLeft } from 'lucide-react';
+import { Card } from './Card';
 
-export interface PaginationProps {
-  /** الصفحة الحالية (1-based) */
+interface PaginationMeta {
   page: number;
-  /** إجمالي عدد الصفحات */
   totalPages: number;
-  /** عند تغيير الصفحة */
-  onPageChange: (page: number) => void;
-  /** إظهار الترقيم فقط عندما يكون هناك أكثر من صفحة (اختياري) */
-  hideIfSinglePage?: boolean;
-  /** عدد أرقام الصفحات الظاهرة حول الحالية (اختياري، افتراضي 2) */
-  siblingCount?: number;
-  className?: string;
+  total: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
 }
 
-/**
- * مكوّن ترقيم: <<  <  [أرقام مع ...]  >  >>
- * الصفحة الحالية بدائرة تركوازية، الباقي رمادي
- */
-export function Pagination({
-  page,
-  totalPages,
-  onPageChange,
-  hideIfSinglePage = true,
-  siblingCount = 2,
-  className = '',
-}: PaginationProps) {
-  if (totalPages < 1) return null;
-  if (hideIfSinglePage && totalPages <= 1) return null;
+interface PaginationProps {
+  meta: PaginationMeta;
+  onPageChange: (page: number) => void;
+}
 
-  const hasPrevious = page > 1;
-  const hasNext = page < totalPages;
-
-  // نافذة الأرقام حول الصفحة الحالية (صعوداً ثم نعكس للعرض RTL)
-  const windowStart = Math.max(1, page - siblingCount);
-  const windowEnd = Math.min(totalPages, page + siblingCount);
-  const windowPages: number[] = [];
-  for (let i = windowStart; i <= windowEnd; i++) windowPages.push(i);
-  const sortedWindow = [...windowPages].sort((a, b) => b - a);
-
-  const showFirstEllipsis = windowStart > 2;
-  const showLastEllipsis = windowEnd < totalPages - 1;
-  const showFirstPage = windowStart > 1;
-  const showLastPage = windowEnd < totalPages && totalPages > 1;
-
-  const buttonBase =
-    'inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
-  const arrowClass = `text-gray-400 hover:text-gray-600 ${buttonBase}`;
-  const pageClass = (isActive: boolean) =>
-    isActive
-      ? `bg-[#09b9b5] text-white cursor-default ${buttonBase}`
-      : `text-gray-400 hover:text-gray-700 hover:bg-gray-100 ${buttonBase}`;
+export function Pagination({ meta, onPageChange }: PaginationProps) {
+  if (!meta || meta.totalPages <= 1) return null;
 
   return (
-    <nav
-      role="navigation"
-      aria-label="الترقيم"
-      className={`flex items-center justify-center gap-1 ${className}`}
-      dir="rtl"
-    >
-      <button
-        type="button"
-        onClick={() => onPageChange(totalPages)}
-        disabled={!hasNext}
-        className={arrowClass}
-        aria-label="آخر صفحة"
-      >
-        <ChevronsRight className="w-4 h-4" />
-      </button>
-      <button
-        type="button"
-        onClick={() => onPageChange(page + 1)}
-        disabled={!hasNext}
-        className={arrowClass}
-        aria-label="الصفحة التالية"
-      >
-        <ChevronRight className="w-4 h-4" />
-      </button>
-
-      <div className="flex items-center gap-0.5 mx-1">
-        {showLastPage && (
-          <>
-            <button
-              type="button"
-              onClick={() => onPageChange(totalPages)}
-              className={pageClass(page === totalPages)}
-            >
-              {totalPages}
-            </button>
-            {showLastEllipsis && (
-              <span className="w-8 h-8 flex items-center justify-center text-gray-400 text-sm">...</span>
-            )}
-          </>
-        )}
-        {sortedWindow.map((p) => (
-          <button
-            key={p}
-            type="button"
-            onClick={() => onPageChange(p)}
-            className={pageClass(p === page)}
-          >
-            {p}
-          </button>
-        ))}
-        {showFirstEllipsis && (
-          <span className="w-8 h-8 flex items-center justify-center text-gray-400 text-sm">...</span>
-        )}
-        {showFirstPage && (
+    <Card>
+      <div className="flex items-center justify-center px-6 py-4">
+        <nav className="flex items-center gap-1" aria-label="ترقيم الصفحات">
           <button
             type="button"
             onClick={() => onPageChange(1)}
-            className={pageClass(page === 1)}
+            disabled={!meta.hasPreviousPage}
+            className="p-2 rounded-xl text-gray-500 hover:bg-[#09b9b5]/10 hover:text-[#09b9b5] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-all duration-200"
+            title="الأولى"
           >
-            1
+            <ChevronsRight className="w-5 h-5" />
           </button>
-        )}
+          <button
+            type="button"
+            onClick={() => onPageChange(meta.page - 1)}
+            disabled={!meta.hasPreviousPage}
+            className="p-2 rounded-xl text-gray-500 hover:bg-[#09b9b5]/10 hover:text-[#09b9b5] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-all duration-200"
+            title="السابق"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+          <div className="flex items-center gap-1 mx-2">
+            {Array.from({ length: meta.totalPages }, (_, i) => i + 1)
+              .filter((p) => {
+                if (meta.totalPages <= 7) return true;
+                if (p === 1 || p === meta.totalPages) return true;
+                if (Math.abs(p - meta.page) <= 2) return true;
+                return false;
+              })
+              .map((p, idx, arr) => {
+                const prev = arr[idx - 1];
+                const showEllipsis = prev != null && p - prev > 1;
+                return (
+                  <span key={p} className="flex items-center gap-0.5">
+                    {showEllipsis && (
+                      <span className="px-2 text-gray-400 text-sm">...</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => onPageChange(p)}
+                      className={`min-w-[2.25rem] h-9 px-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                        meta.page === p
+                          ? 'bg-[#09b9b5] text-white shadow-md shadow-[#09b9b5]/25'
+                          : 'text-gray-600 hover:bg-[#09b9b5]/10 hover:text-[#09b9b5]'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  </span>
+                );
+              })}
+          </div>
+          <button
+            type="button"
+            onClick={() => onPageChange(meta.page + 1)}
+            disabled={!meta.hasNextPage}
+            className="p-2 rounded-xl text-gray-500 hover:bg-[#09b9b5]/10 hover:text-[#09b9b5] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-all duration-200"
+            title="التالي"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onPageChange(meta.totalPages)}
+            disabled={!meta.hasNextPage}
+            className="p-2 rounded-xl text-gray-500 hover:bg-[#09b9b5]/10 hover:text-[#09b9b5] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-all duration-200"
+            title="الأخيرة"
+          >
+            <ChevronsLeft className="w-5 h-5" />
+          </button>
+        </nav>
       </div>
-
-      <button
-        type="button"
-        onClick={() => onPageChange(page - 1)}
-        disabled={!hasPrevious}
-        className={arrowClass}
-        aria-label="الصفحة السابقة"
-      >
-        <ChevronLeft className="w-4 h-4" />
-      </button>
-      <button
-        type="button"
-        onClick={() => onPageChange(1)}
-        disabled={!hasPrevious}
-        className={arrowClass}
-        aria-label="أول صفحة"
-      >
-        <ChevronsLeft className="w-4 h-4" />
-      </button>
-    </nav>
+    </Card>
   );
 }

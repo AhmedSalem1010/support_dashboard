@@ -1,29 +1,32 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { Plus, Wrench, Car, Calendar, DollarSign, Upload, Search, Filter, Download, X, Eye, Edit, Trash2, TrendingUp, TrendingDown, CheckCircle, Clock, FileText, User, Shield, AlertCircle } from 'lucide-react';
+import { Plus, Wrench, Car, Calendar, Coins, Upload, Search, Filter, Download, X, Eye, Edit, Trash2, TrendingUp, TrendingDown, CheckCircle, Clock, FileText, User, Shield, AlertCircle } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
+import { Pagination } from '@/components/ui/Pagination';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { RepairTypeSelector, type RepairTypeItem } from '@/components/ui/RepairTypeSelector';
 import { useVehiclesList } from '@/hooks/useVehiclesList';
 import { useLastAuthorizationData } from '@/hooks/useLastAuthorizationData';
-import { VehicleDriverSummary } from '@/components/ui/VehicleDriverSummary';
+import VehicleDriverInfoCard from '@/components/ui/VehicleDriverInfoCard';
 import { MAINTENANCE_STATUS_LABELS, MAINTENANCE_TYPE_LABELS, statusToArabic } from '@/lib/enums';
 import { Portal } from '@/components/ui/Portal';
 import { useNotificationsContext } from '@/components/ui/Notifications';
-import { createVehicleMaintaince } from '@/lib/api/maintenance';
+import { createVehicleMaintaince, updateVehicleMaintaince, uploadMaintenanceImages } from '@/lib/api/maintenance';
 import { useMaintenanceList } from '@/hooks/useMaintenanceList';
+import { useMaintenanceStatistics } from '@/hooks/useMaintenanceStatistics';
 import type { VehicleMaintainceItem } from '@/types/maintenance';
-import { Pagination } from '@/components/ui/Pagination';
 
 export function Maintenance() {
   const { success: showSuccess, error: showError, loading: showLoading, removeNotification } = useNotificationsContext();
   const [showModal, setShowModal] = useState(false);
   const [selectedMaintenance, setSelectedMaintenance] = useState<any>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingMaintenanceId, setEditingMaintenanceId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('');
@@ -42,6 +45,7 @@ export function Maintenance() {
     maintainceStatus: filterStatus || undefined,
     maintanceCostBearer: filterCostOn ? costBearerToApi[filterCostOn] : undefined,
   });
+  const { data: statisticsData, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useMaintenanceStatistics();
   useEffect(() => {
     setListPage(1);
   }, [searchTerm, filterType, filterStatus, filterCostOn, effectiveLimit]);
@@ -62,8 +66,9 @@ export function Maintenance() {
   const [descriptionNotes, setDescriptionNotes] = useState('');
 
   // خيارات القوائم المنسدلة - المركبات من API
-  const { vehicleOptions } = useVehiclesList();
+  const { vehicleOptions, vehicles } = useVehiclesList();
   const selectedPlateName = vehicleOptions.find((o) => o.value === formData.vehicleId)?.plateName ?? null;
+  const selectedVehicleData = formData.vehicleId ? vehicles.find((v) => v.id === formData.vehicleId) : null;
   const lastAuth = useLastAuthorizationData(selectedPlateName);
   const maintenanceTypeOptions = [
     { value: 'oil', label: 'تغيير زيت' },
@@ -181,33 +186,53 @@ export function Maintenance() {
   const maintenanceRecords = useMemo(() => maintenanceListData.map(mapMaintenanceItemToRow), [maintenanceListData]);
   const filteredRecords = maintenanceRecords;
 
-  const commonTypes = [
-    { label: 'تغيير زيت', count: 45, color: 'bg-[#09b9b5]', percent: 29 },
-    { label: 'صيانة دورية', count: 32, color: 'bg-[#00a287]', percent: 20 },
-    { label: 'إصلاحات', count: 28, color: 'bg-[#f57c00]', percent: 18 },
-    { label: 'إطارات', count: 20, color: 'bg-purple-500', percent: 13 },
-    { label: 'أخرى', count: 31, color: 'bg-[#617c96]', percent: 20 },
-  ];
-  const maxCount = Math.max(...commonTypes.map((t) => t.count));
+  // تحويل بيانات الإحصائيات من API إلى الصيغة المطلوبة للعرض
+  const typeColors: Record<string, string> = {
+    'oil': 'bg-[#09b9b5]',
+    'periodic': 'bg-[#00a287]',
+    'repair': 'bg-[#f57c00]',
+    'accident': 'bg-purple-500',
+  };
 
-  const monthlyData = [
-    { month: 'يناير', amount: 40000 },
-    { month: 'فبراير', amount: 65000 },
-    { month: 'مارس', amount: 45000 },
-    { month: 'أبريل', amount: 80000 },
-    { month: 'مايو', amount: 55000 },
-    { month: 'يونيو', amount: 70000 },
-  ];
-  const maxAmount = Math.max(...monthlyData.map(m => m.amount));
+  const typeLabels: Record<string, string> = {
+    'oil': 'تغيير زيت',
+    'periodic': 'صيانة دورية',
+    'repair': 'إصلاح',
+    'accident': 'حادث مروري',
+  };
+
+  const commonTypes = useMemo(() => {
+    if (!statisticsData?.maintaincesByType) return [];
+    const total = statisticsData.maintaincesByType.reduce((sum, item) => sum + item.count, 0);
+    return statisticsData.maintaincesByType.map((item) => ({
+      label: typeLabels[item.type] || item.type,
+      count: item.count,
+      color: typeColors[item.type] || 'bg-[#617c96]',
+      percent: total > 0 ? Math.round((item.count / total) * 100) : 0,
+    }));
+  }, [statisticsData]);
+
+  const maxCount = commonTypes.length > 0 ? Math.max(...commonTypes.map((t) => t.count)) : 1;
+
+  const monthlyData = useMemo(() => {
+    if (!statisticsData?.costsByMonth) return [];
+    return statisticsData.costsByMonth.map((item) => ({
+      month: item.monthName,
+      amount: item.totalCost,
+    }));
+  }, [statisticsData]);
+
+  const maxAmount = monthlyData.length > 0 ? Math.max(...monthlyData.map(m => m.amount)) : 1;
 
   // Statistics من بيانات الـ API
   const stats = {
-    driverCost: maintenanceRecords.filter(r => r.costOn === 'السائق').reduce((sum, r) => sum + r.amount, 0),
-    companyCost: maintenanceRecords.filter(r => r.costOn === 'الشركة').reduce((sum, r) => sum + r.amount, 0),
-    inProgress: maintenanceRecords.filter(r => r.status === 'in_progress').length,
-    total: maintenanceMeta?.total ?? maintenanceRecords.length,
-    vehicleCost: maintenanceRecords.filter(r => r.costOn === 'المركبة').reduce((sum, r) => sum + r.amount, 0),
+    driverCost: statisticsData?.driverCostMaintainces ?? 0,
+    companyCost: statisticsData?.companyCostMaintainces ?? 0,
+    inProgress: statisticsData?.pendingMaintainces ?? 0,
+    total: statisticsData?.totalMaintainces ?? 0,
+    vehicleCost: 0,
   };
+
 
   const columns = [
     { 
@@ -328,7 +353,7 @@ export function Maintenance() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              // Edit logic
+              handleEdit(row);
             }}
             className="p-2 hover:bg-green-50 rounded-lg transition-colors group"
             title="تعديل"
@@ -365,6 +390,34 @@ export function Maintenance() {
       } else {
         setInvoicePreview('');
       }
+    }
+  };
+
+  const handleEdit = (row: any) => {
+    const rawData = row._raw;
+    setIsEditMode(true);
+    setEditingMaintenanceId(rawData.id);
+    setShowModal(true);
+    
+    // ملء النموذج ببيانات السجل المراد تعديله
+    setFormData({
+      vehicleId: rawData.vehicleId || '',
+      type: rawData.maintainceType || '',
+      date: rawData.maintainceDate || '',
+      costOn: rawData.maintanceCostBearer || '',
+      amount: rawData.maintainceCost || '0.00',
+      supervisorName: rawData.maintanceSupervisor?.name || '',
+      description: rawData.maintainceNote || '',
+    });
+    
+    // إذا كان هناك أجزاء صيانة، حاول تحليلها
+    if (rawData.maintanceParts) {
+      const parts = rawData.maintanceParts.split('، ');
+      const selections = parts.map((part: string, index: number) => ({
+        id: `part-${index}`,
+        label: part,
+      }));
+      setRepairTypeSelections(selections);
     }
   };
 
@@ -408,6 +461,23 @@ export function Maintenance() {
               بطاقات
             </button>
           </div>
+
+          <Button 
+            variant="primary" 
+            onClick={() => {
+              setIsEditMode(false);
+              setEditingMaintenanceId(null);
+              setFormData({ vehicleId: '', type: '', date: '', costOn: '', amount: '0.00', supervisorName: '', description: '' });
+              setRepairTypeSelections([]);
+              setRepairTypeImages({});
+              setDescriptionNotes('');
+              setShowModal(true);
+            }} 
+            className="text-sm sm:text-base"
+          >
+            <Plus className="w-4 h-4 ml-1 sm:ml-2" />
+            إضافة صيانة
+          </Button>
 
           <Button 
             variant="outline" 
@@ -462,7 +532,7 @@ export function Maintenance() {
             </div>
             <div className="relative">
               <div className="absolute inset-0 bg-[#d32f2f]/20 rounded-full blur-xl group-hover:blur-2xl transition-all"></div>
-              <DollarSign className="w-8 h-8 sm:w-10 sm:h-10 text-[#d32f2f] flex-shrink-0 relative z-10 group-hover:scale-110 transition-transform" />
+              <Coins className="w-8 h-8 sm:w-10 sm:h-10 text-[#d32f2f] flex-shrink-0 relative z-10 group-hover:scale-110 transition-transform" />
             </div>
           </div>
         </Card>
@@ -484,7 +554,7 @@ export function Maintenance() {
             </div>
             <div className="relative">
               <div className="absolute inset-0 bg-[#00a287]/20 rounded-full blur-xl group-hover:blur-2xl transition-all"></div>
-              <DollarSign className="w-8 h-8 sm:w-10 sm:h-10 text-[#00a287] flex-shrink-0 relative z-10 group-hover:scale-110 transition-transform" />
+              <Coins className="w-8 h-8 sm:w-10 sm:h-10 text-[#00a287] flex-shrink-0 relative z-10 group-hover:scale-110 transition-transform" />
             </div>
           </div>
         </Card>
@@ -736,59 +806,34 @@ export function Maintenance() {
         </div>
       )}
       {viewMode === 'table' ? (
-        <Card>
-          {maintenanceLoading ? (
-            <div className="flex items-center justify-center gap-2 py-12 text-gray-500">
-              <div className="w-6 h-6 border-2 border-[#09b9b5] border-t-transparent rounded-full animate-spin" />
-              <span>جاري تحميل سجلات الصيانة...</span>
-            </div>
-          ) : (
-            <>
-              <Table 
-                columns={columns} 
-                data={filteredRecords} 
-                onRowClick={(row) => setSelectedMaintenance(row)} 
-              />
-              {maintenanceMeta && (
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-gray-200 bg-gray-50/50">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="text-sm text-gray-600">
-                      صفحة {maintenanceMeta.page} من {maintenanceMeta.totalPages} — إجمالي {maintenanceMeta.total} سجل
-                    </span>
-                    <label className="flex items-center gap-2 text-sm text-gray-600">
-                      <span>عرض</span>
-                      <select
-                        value={listLimitChoice}
-                        onChange={(e) => setListLimitChoice(Number(e.target.value))}
-                        className="p-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#09b9b5] text-sm"
-                      >
-                        <option value={10}>10</option>
-                        <option value={25}>25</option>
-                        <option value={50}>50</option>
-                      </select>
-                      <span>في الصفحة</span>
-                    </label>
-                  </div>
-                  <Pagination
-                    page={maintenanceMeta.page}
-                    totalPages={maintenanceMeta.totalPages}
-                    onPageChange={setListPage}
-                    hideIfSinglePage={false}
-                  />
-                </div>
-              )}
-            </>
-          )}
-        </Card>
+        <>
+          <Card>
+            {maintenanceLoading ? (
+              <div className="flex items-center justify-center gap-2 py-12 text-gray-500">
+                <div className="w-6 h-6 border-2 border-[#09b9b5] border-t-transparent rounded-full animate-spin" />
+                <span>جاري تحميل سجلات الصيانة...</span>
+              </div>
+            ) : (
+              <>
+                <Table 
+                  columns={columns} 
+                  data={filteredRecords} 
+                  onRowClick={(row) => setSelectedMaintenance(row)} 
+                />
+              </>
+            )}
+          </Card>
+        </>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {maintenanceLoading ? (
-            <div className="col-span-full flex items-center justify-center gap-2 py-12 text-gray-500">
-              <div className="w-6 h-6 border-2 border-[#09b9b5] border-t-transparent rounded-full animate-spin" />
-              <span>جاري تحميل سجلات الصيانة...</span>
-            </div>
-          ) : (
-            filteredRecords.map((record, index) => (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {maintenanceLoading ? (
+              <div className="col-span-full flex items-center justify-center gap-2 py-12 text-gray-500">
+                <div className="w-6 h-6 border-2 border-[#09b9b5] border-t-transparent rounded-full animate-spin" />
+                <span>جاري تحميل سجلات الصيانة...</span>
+              </div>
+            ) : (
+              filteredRecords.map((record, index) => (
             <Card 
               key={record.id}
               className="group cursor-pointer hover:shadow-lg transition-all duration-300 border-t-4 border-[#09b9b5] overflow-hidden"
@@ -866,7 +911,7 @@ export function Maintenance() {
                     {record.costOn}
                   </Badge>
                   <div className="flex items-center gap-1.5">
-                    <DollarSign className="w-4 h-4 text-[#09b9b5]" />
+                    <Coins className="w-4 h-4 text-[#09b9b5]" />
                     <span className="font-bold text-gray-900">{record.amount.toLocaleString()}</span>
                     <span className="text-sm text-gray-500">ر.س</span>
                   </div>
@@ -880,35 +925,10 @@ export function Maintenance() {
               </div>
             </Card>
           )))}
-          {maintenanceMeta && (
-            <div className="col-span-full flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 mt-4 border-t border-gray-200 bg-gray-50/50 rounded-b-xl">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-sm text-gray-600">
-                  صفحة {maintenanceMeta.page} من {maintenanceMeta.totalPages} — إجمالي {maintenanceMeta.total} سجل
-                </span>
-                <label className="flex items-center gap-2 text-sm text-gray-600">
-                  <span>عرض</span>
-                  <select
-                    value={listLimitChoice}
-                    onChange={(e) => setListLimitChoice(Number(e.target.value))}
-                    className="p-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#09b9b5] text-sm"
-                  >
-                    <option value={10}>10</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                  </select>
-                  <span>في الصفحة</span>
-                </label>
-              </div>
-              <Pagination
-                page={maintenanceMeta.page}
-                totalPages={maintenanceMeta.totalPages}
-                onPageChange={setListPage}
-                hideIfSinglePage={false}
-              />
-            </div>
-          )}
-        </div>
+          </div>
+
+          {maintenanceMeta && <Pagination meta={maintenanceMeta} onPageChange={setListPage} />}
+        </>
       )}
 
       {/* Maintenance Details Modal */}
@@ -967,7 +987,7 @@ export function Maintenance() {
                 </div>
 
                 <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl border border-purple-100">
-                  <DollarSign className="w-6 h-6 text-purple-600 mx-auto mb-2" />
+                  <Coins className="w-6 h-6 text-purple-600 mx-auto mb-2" />
                   <p className="text-xs text-gray-600 mb-1">التكلفة</p>
                   <p className="text-sm font-bold text-gray-900">{selectedMaintenance.amount.toLocaleString()} ر.س</p>
                 </div>
@@ -1045,12 +1065,20 @@ export function Maintenance() {
                     <Plus className="w-6 h-6" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold">إضافة صيانة جديدة</h2>
-                    <p className="text-white/80 text-sm mt-0.5">سجل بيانات الصيانة بدقة</p>
+                    <h2 className="text-2xl font-bold">{isEditMode ? 'تعديل سجل الصيانة' : 'إضافة صيانة جديدة'}</h2>
+                    <p className="text-white/80 text-sm mt-0.5">{isEditMode ? 'قم بتحديث بيانات الصيانة' : 'سجل بيانات الصيانة بدقة'}</p>
                   </div>
                 </div>
                 <button
-                  onClick={() => setShowModal(false)}
+                  onClick={() => {
+                    setShowModal(false);
+                    setIsEditMode(false);
+                    setEditingMaintenanceId(null);
+                    setFormData({ vehicleId: '', type: '', date: '', costOn: '', amount: '0.00', supervisorName: '', description: '' });
+                    setRepairTypeSelections([]);
+                    setRepairTypeImages({});
+                    setDescriptionNotes('');
+                  }}
                   className="p-2 hover:bg-white/20 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5" />
@@ -1061,15 +1089,69 @@ export function Maintenance() {
             <form 
               onSubmit={async (e) => { 
                 e.preventDefault(); 
-                if (!formData.vehicleId || !formData.type || !formData.date || !formData.costOn || !formData.amount || !formData.description) return;
-                const vehicleAuthorizationId = lastAuth.data?.id;
-                if (!vehicleAuthorizationId) {
-                  showError('بيانات التفويض غير متوفرة', 'اختر مركبة وتحقق من ظهور بيانات المركبة والسائق ثم أعد المحاولة.');
-                  return;
-                }
-                const loadingId = showLoading('جاري حفظ الصيانة...', '');
+                if (!formData.type || !formData.date || !formData.costOn || !formData.amount || !formData.description) return;
+                
+                const loadingId = showLoading(isEditMode ? 'جاري تحديث الصيانة...' : 'جاري حفظ الصيانة...', '');
                 try {
-                  const res = await createVehicleMaintaince({
+                  if (isEditMode && editingMaintenanceId) {
+                    // وضع التعديل
+                    const updateDto = {
+                      maintainceDate: formData.date,
+                      maintainceType: formData.type,
+                      maintanceCostBearer: formData.costOn,
+                      maintanceParts: repairTypeSelections.length > 0 ? repairTypeSelections.map((s) => s.label).join('، ') : formData.description,
+                      maintainceNote: formData.description,
+                      maintainceSupervisorName: formData.supervisorName || '—',
+                      maintainceCost: Number(formData.amount) || 0,
+                    };
+                    
+                    const res = await updateVehicleMaintaince(editingMaintenanceId, updateDto);
+                    
+                    if (res.success) {
+                      // رفع الصور إذا كانت موجودة
+                      if (Object.keys(repairTypeImages).length > 0) {
+                        removeNotification(loadingId);
+                        const uploadingId = showLoading('جاري رفع الصور...', '');
+                        try {
+                          const uploadResult = await uploadMaintenanceImages(editingMaintenanceId, repairTypeImages);
+                          removeNotification(uploadingId);
+                          if (!uploadResult.success) {
+                            showError('تحذير', 'تم تحديث الصيانة ولكن فشل رفع بعض الصور');
+                          }
+                        } catch (uploadErr) {
+                          removeNotification(uploadingId);
+                          showError('تحذير', 'تم تحديث الصيانة ولكن فشل رفع الصور');
+                        }
+                      }
+                      
+                      showSuccess('تم تحديث الصيانة', res.message || 'تم تحديث سجل الصيانة بنجاح');
+                      refetchMaintenance();
+                      refetchStats();
+                      setShowModal(false);
+                      setIsEditMode(false);
+                      setEditingMaintenanceId(null);
+                      setFormData({ vehicleId: '', type: '', date: '', costOn: '', amount: '0.00', supervisorName: '', description: '' });
+                      setRepairTypeSelections([]);
+                      setRepairTypeImages({});
+                      setDescriptionNotes('');
+                      setInvoiceFile(null);
+                      setInvoicePreview('');
+                    } else {
+                      showError('فشل تحديث الصيانة', (res as { message?: string }).message || 'حدث خطأ');
+                    }
+                  } else {
+                    // وضع الإضافة
+                    if (!formData.vehicleId) {
+                      showError('خطأ في البيانات', 'يرجى اختيار المركبة');
+                      return;
+                    }
+                    const vehicleAuthorizationId = lastAuth.data?.id;
+                    if (!vehicleAuthorizationId) {
+                      showError('بيانات التفويض غير متوفرة', 'اختر مركبة وتحقق من ظهور بيانات المركبة والسائق ثم أعد المحاولة.');
+                      return;
+                    }
+                    
+                    const res = await createVehicleMaintaince({
                     vehicleId: formData.vehicleId || null,
                     vehicleAuthorizationId,
                     maintainceDate: formData.date,
@@ -1081,18 +1163,37 @@ export function Maintenance() {
                     maintainceSupervisorName: formData.supervisorName || '—',
                     maintainceCost: Number(formData.amount) || 0,
                   });
-                  if (res.success) {
-                    showSuccess('تم حفظ الصيانة', res.message || 'تم إنشاء سجل الصيانة بنجاح');
-                    refetchMaintenance();
-                    setShowModal(false);
-                    setFormData({ vehicleId: '', type: '', date: '', costOn: '', amount: '0.00', supervisorName: '', description: '' });
-                    setRepairTypeSelections([]);
-                    setRepairTypeImages({});
-                    setDescriptionNotes('');
-                    setInvoiceFile(null);
-                    setInvoicePreview('');
-                  } else {
-                    showError('فشل حفظ الصيانة', (res as { message?: string }).message || 'حدث خطأ');
+                  
+                  if (res.success && res.data?.id) {
+                    // الخطوة 2: رفع الصور مع UUID الصيانة
+                    if (Object.keys(repairTypeImages).length > 0) {
+                      removeNotification(loadingId);
+                      const uploadingId = showLoading('جاري رفع الصور...', '');
+                      try {
+                        const uploadResult = await uploadMaintenanceImages(res.data.id, repairTypeImages);
+                        removeNotification(uploadingId);
+                        if (!uploadResult.success) {
+                          showError('تحذير', 'تم حفظ الصيانة ولكن فشل رفع بعض الصور');
+                        }
+                      } catch (uploadErr) {
+                        removeNotification(uploadingId);
+                        showError('تحذير', 'تم حفظ الصيانة ولكن فشل رفع الصور');
+                      }
+                    }
+                    
+                      showSuccess('تم حفظ الصيانة', res.message || 'تم إنشاء سجل الصيانة بنجاح');
+                      refetchMaintenance();
+                      refetchStats();
+                      setShowModal(false);
+                      setFormData({ vehicleId: '', type: '', date: '', costOn: '', amount: '0.00', supervisorName: '', description: '' });
+                      setRepairTypeSelections([]);
+                      setRepairTypeImages({});
+                      setDescriptionNotes('');
+                      setInvoiceFile(null);
+                      setInvoicePreview('');
+                    } else {
+                      showError('فشل حفظ الصيانة', (res as { message?: string }).message || 'حدث خطأ');
+                    }
                   }
                 } catch (err: unknown) {
                   const ax = err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } };
@@ -1154,11 +1255,10 @@ export function Maintenance() {
 
                   {formData.vehicleId && (
                     <div className="md:col-span-2 w-full min-w-0">
-                      <VehicleDriverSummary
-                        data={lastAuth.data}
+                      <VehicleDriverInfoCard
+                        vehicleData={selectedVehicleData}
+                        lastAuthData={lastAuth.data}
                         isLoading={lastAuth.isLoading}
-                        error={lastAuth.error}
-                        className="w-full"
                       />
                     </div>
                   )}
@@ -1218,7 +1318,7 @@ export function Maintenance() {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]" 
                         placeholder="0.00" 
                       />
-                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                      <Coins className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                     </div>
                   </div>
 

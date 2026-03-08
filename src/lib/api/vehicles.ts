@@ -7,6 +7,9 @@ import api from './config';
 import type {
   VehiclesApiResponse,
   VehiclesFetchParams,
+  VehicleToolsApiResponse,
+  UpdateVehicleToolsDto,
+  UpdateVehicleToolsApiResponse,
 } from '@/types/vehicle';
 
 const VEHICLES_ENDPOINT = '/vehicles';
@@ -32,5 +35,27 @@ export async function fetchVehicles(
   const { data } = await api.get<VehiclesApiResponse>(VEHICLES_ENDPOINT, {
     params: buildParams(params),
   });
+  return data;
+}
+
+export async function fetchVehicleTools(
+  vehicleId: string
+): Promise<VehicleToolsApiResponse> {
+  const { data } = await api.get<VehicleToolsApiResponse>(
+    `${VEHICLES_ENDPOINT}/api/vehicle-tools`,
+    {
+      params: { vehicleId },
+    }
+  );
+  return data;
+}
+
+export async function updateVehicleTools(
+  dto: UpdateVehicleToolsDto
+): Promise<UpdateVehicleToolsApiResponse> {
+  const { data } = await api.patch<UpdateVehicleToolsApiResponse>(
+    `${VEHICLES_ENDPOINT}/api/update-vehicle-tools`,
+    dto
+  );
   return data;
 }

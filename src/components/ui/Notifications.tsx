@@ -147,15 +147,17 @@ export const NotificationsContainer: React.FC<NotificationsContainerProps> = ({
 };
 
 // Hook for managing notifications
+let notificationCounter = 0;
+
 export const useNotifications = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const addNotification = (notification: Omit<Notification, 'id'>) => {
-    const id = Date.now().toString();
+    const id = `${Date.now()}-${++notificationCounter}`;
     const newNotification: Notification = {
       ...notification,
       id,
-      duration: notification.duration ?? 5000, // Default 5 seconds
+      duration: notification.duration ?? 3000, // Default 3 seconds
     };
     
     setNotifications((prev) => [...prev, newNotification]);
@@ -184,7 +186,7 @@ export const useNotifications = () => {
     addNotification({ type: 'info', title, message, ...options });
 
   const loading = (title: string, message?: string, options?: Partial<Omit<Notification, 'id' | 'type' | 'title' | 'message'>>) =>
-    addNotification({ type: 'loading', title, message, duration: 0, ...options }); // No auto-close for loading
+    addNotification({ type: 'loading', title, message, duration: 5000, ...options }); // Auto-close after 5 seconds
 
   return {
     notifications,
