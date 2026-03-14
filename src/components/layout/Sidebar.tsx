@@ -1,7 +1,9 @@
 'use client';
 
-import { LayoutDashboard, Car, Users, FileText, Wrench, AlertTriangle, DollarSign, BarChart3, Menu, X, Bell, User, ChevronDown, Search, Settings, LogOut, Package } from 'lucide-react';
+import { LayoutDashboard, Car, Users, FileText, Wrench, AlertTriangle, AlertCircle, DollarSign, BarChart3, Menu, X, Bell, User, ChevronDown, Search, Settings, LogOut, Package, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SidebarProps {
   currentPage: string;
@@ -19,16 +21,30 @@ const menuItems = [
   { id: 'equipment', label: 'المعدات والسكن', icon: Package, color: 'from-teal-500 to-teal-600' },
   { id: 'maintenance', label: 'الصيانة', icon: Wrench, color: 'from-yellow-500 to-yellow-600' },
   { id: 'accidents', label: 'الحوادث', icon: AlertTriangle, color: 'from-red-500 to-red-600' },
+  { id: 'operation-alerts', label: 'مخالفات المركبات', icon: AlertCircle, color: 'from-amber-500 to-amber-600' },
   { id: 'expenses', label: 'المصاريف', icon: DollarSign, color: 'from-emerald-500 to-emerald-600' },
   { id: 'reports', label: 'التقارير المالية', icon: BarChart3, color: 'from-indigo-500 to-indigo-600' },
 ];
 
 export function Sidebar({ currentPage, onPageChange, isOpen, onClose, onMenuClick }: SidebarProps) {
+  const router = useRouter();
+  const { user, logout, isLoading: authLoading } = useAuth();
   const [scrolled, setScrolled] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [notificationCount] = useState(3);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logout();
+      router.replace('/login');
+    } finally {
+      setLoggingOut(false);
+    }
+  };
 
   // Handle scroll effect
   useEffect(() => {
@@ -104,7 +120,7 @@ export function Sidebar({ currentPage, onPageChange, isOpen, onClose, onMenuClic
               <h1 className="text-sm sm:text-base md:text-lg font-bold bg-gradient-to-l from-white to-white/90 bg-clip-text text-transparent">
                 نظام المساندة ودعم الفرق
               </h1>
-              <p className="text-xs text-white/70 hidden sm:flex items-center gap-1">
+              <p className="text-xs text-white/70 hidden sm:flex items-center gap-1" suppressHydrationWarning>
                 <span className="inline-block w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
                 CleanLife Dashboard • {formatTime(currentTime)}
               </p>
@@ -202,16 +218,33 @@ export function Sidebar({ currentPage, onPageChange, isOpen, onClose, onMenuClic
               {showUserMenu && (
                 <div className="absolute left-0 mt-2 w-56 bg-white rounded-2xl shadow-lg border border-gray-100 py-2 animate-fadeIn">
                   <div className="px-4 py-3 border-b border-gray-100">
-                    <p className="text-sm font-semibold text-gray-800 text-right">أحمد محمد</p>
-                    <p className="text-xs text-gray-500 text-right">مدير النظام</p>
+                    <p className="text-sm font-semibold text-gray-800 text-right">
+                      {user?.username || user?.name || 'مستخدم'}
+                    </p>
+                    <p className="text-xs text-gray-500 text-right" dir="ltr">
+                      {user?.phone || ''}
+                    </p>
                   </div>
                   <button className="w-full px-4 py-2.5 text-right hover:bg-gray-50 transition-colors flex items-center justify-end gap-2 text-gray-700 text-sm">
                     <span>الإعدادات</span>
                     <Settings className="w-4 h-4" />
                   </button>
-                  <button className="w-full px-4 py-2.5 text-right hover:bg-red-50 transition-colors flex items-center justify-end gap-2 text-red-600 text-sm">
-                    <span>تسجيل الخروج</span>
-                    <LogOut className="w-4 h-4" />
+                  <button 
+                    onClick={handleLogout}
+                    disabled={loggingOut}
+                    className="w-full px-4 py-2.5 text-right hover:bg-red-50 transition-colors flex items-center justify-end gap-2 text-red-600 text-sm disabled:opacity-50"
+                  >
+                    {loggingOut ? (
+                      <>
+                        <span>جاري الخروج...</span>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      </>
+                    ) : (
+                      <>
+                        <span>تسجيل الخروج</span>
+                        <LogOut className="w-4 h-4" />
+                      </>
+                    )}
                   </button>
                 </div>
               )}
@@ -250,7 +283,7 @@ export function Sidebar({ currentPage, onPageChange, isOpen, onClose, onMenuClic
             </div>
 
             {/* Date display */}
-            <div className="mb-4 text-center text-white/80 text-xs bg-white/10 rounded-xl py-2 backdrop-blur-sm">
+            <div className="mb-4 text-center text-white/80 text-xs bg-white/10 rounded-xl py-2 backdrop-blur-sm" suppressHydrationWarning>
               {formatDate(currentTime)}
             </div>
 

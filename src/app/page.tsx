@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
+import { AuthGuard } from '@/components/auth/AuthGuard';
 import Dashboard from '@/components/pages/Dashboard';
 import { Vehicles } from '@/components/pages/Vehicles';
 import { Users } from '@/components/pages/Users';
@@ -9,6 +10,7 @@ import { Authorizations } from '@/components/pages/Authorizations';
 import { Equipment } from '@/components/pages/Equipment';
 import { Maintenance } from '@/components/pages/Maintenance';
 import { Accidents } from '@/components/pages/Accidents';
+import { OperationAlerts } from '@/components/pages/OperationAlerts';
 import { Expenses } from '@/components/pages/Expenses';
 import FinancialReports from '@/components/pages/FinancialReports';
 
@@ -53,6 +55,8 @@ export default function HomePage() {
         return <Maintenance />;
       case 'accidents':
         return <Accidents />;
+      case 'operation-alerts':
+        return <OperationAlerts />;
       case 'expenses':
         return <Expenses />;
       case 'reports':
@@ -63,17 +67,19 @@ export default function HomePage() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      <Sidebar 
-        currentPage={currentPage} 
-        onPageChange={setCurrentPage}
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        onMenuClick={() => setSidebarOpen(true)}
-      />
-      <main className="flex-1 p-3 sm:p-4 md:p-6">
-        {renderPage()}
-      </main>
-    </div>
+    <AuthGuard>
+      <div className="flex flex-col min-h-screen bg-gray-50">
+        <Sidebar 
+          currentPage={currentPage} 
+          onPageChange={setCurrentPage}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          onMenuClick={() => setSidebarOpen(true)}
+        />
+        <main className="flex-1 p-3 sm:p-4 md:p-6">
+          {renderPage()}
+        </main>
+      </div>
+    </AuthGuard>
   );
 }

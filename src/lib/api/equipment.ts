@@ -16,10 +16,10 @@ import type {
 } from '@/types/equipment';
 
 const EQUIPMENT_ENDPOINT = '/vehicle-equipment-inventory';
-/** بيانات معدات المركبة حسب رقم اللوحة: GET /vehicle-equipment-inventory/api/vehicle-info?vehiclePlateName=... */
-const VEHICLE_INFO_ENDPOINT = `${EQUIPMENT_ENDPOINT}/api/vehicle-info`;
-/** حفظ/تحديث حالة فحص الجرد: POST /vehicle-equipment-inventory/api/check-equipment-inventory-status */
-const CHECK_EQUIPMENT_INVENTORY_STATUS_ENDPOINT = `${EQUIPMENT_ENDPOINT}/api/check-equipment-inventory-status`;
+/** بيانات معدات المركبة حسب رقم اللوحة: GET /vehicle-equipment-inventory/support/vehicle-info?vehiclePlateName=... */
+const VEHICLE_INFO_ENDPOINT = `${EQUIPMENT_ENDPOINT}/support/vehicle-info`;
+/** حفظ/تحديث حالة فحص الجرد: POST /vehicle-equipment-inventory/support/check-equipment-inventory-status */
+const CHECK_EQUIPMENT_INVENTORY_STATUS_ENDPOINT = `${EQUIPMENT_ENDPOINT}/support/check-equipment-inventory-status`;
 
 function buildParams(params?: EquipmentInventoryFetchParams): Record<string, string> {
   const query: Record<string, string> = {};
@@ -51,6 +51,27 @@ export async function fetchEquipmentInventories(
 export async function fetchEquipmentInventoryById(id: string): Promise<any> {
   const { data } = await api.get(`${EQUIPMENT_ENDPOINT}/${id}`);
   return data;
+}
+
+const UPDATE_EQUIPMENT_INVENTORY_STATUS_ENDPOINT = `${EQUIPMENT_ENDPOINT}/api/update-equipment-inventory-status`;
+
+/**
+ * تحديث حالة الجرد (قبول/رفض) مع الملاحظات
+ * PATCH /vehicle-equipment-inventory/support/update-equipment-inventory-status
+ * Body: { equipmentInventoryId, equipmentInventoryStatus?, equipmentInventoryNote? }
+ */
+export async function updateEquipmentInventoryStatus(
+  inventoryId: string,
+  equipmentInventoryStatus: 'accepted' | 'rejected',
+  equipmentInventoryNote?: string
+): Promise<{ data?: any; success: boolean; message?: string }> {
+  const body: { equipmentInventoryId: string; equipmentInventoryStatus: string; equipmentInventoryNote?: string } = {
+    equipmentInventoryId: inventoryId,
+    equipmentInventoryStatus,
+  };
+  if (equipmentInventoryNote?.trim()) body.equipmentInventoryNote = equipmentInventoryNote.trim();
+  const { data } = await api.patch(UPDATE_EQUIPMENT_INVENTORY_STATUS_ENDPOINT, body);
+  return data ?? { success: false };
 }
 
 /**
@@ -98,7 +119,7 @@ export function getVehicleInfoRequestInfo(vehiclePlateName: string): VehicleInfo
 
 /**
  * إرسال نتيجة فحص المعدات (فحص المركبات).
- * يربط مع: POST /vehicle-equipment-inventory/api/check-equipment-inventory-status
+ * يربط مع: POST /vehicle-equipment-inventory/support/check-equipment-inventory-status
  */
 export async function checkEquipmentInventoryStatus(
   dto: CheckEquipmentInventoryStatusDto

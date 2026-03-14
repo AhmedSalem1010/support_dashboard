@@ -14,8 +14,8 @@ import { formatDateToISO } from '@/lib/utils/dateUtils';
 import { formatPlateNameForApi } from '@/lib/utils/plateUtils';
 
 const AUTHORIZATIONS_ENDPOINT = '/vehicle-authorizations';
-/** بيانات المركبة والسائق - مطابق لـ: GET /vehicle-authorizations/api/last-authorization-data?vehiclePlateName=... */
-const LAST_AUTHORIZATION_DATA_ENDPOINT = '/vehicle-authorizations/api/last-authorization-data';
+/** بيانات المركبة والسائق - مطابق لـ: GET /vehicle-authorizations/support/last-authorization-data?vehiclePlateName=... */
+const LAST_AUTHORIZATION_DATA_ENDPOINT = '/vehicle-authorizations/support/last-authorization-data';
 
 function buildParams(params?: AuthorizationsFetchParams): Record<string, string> {
   const query: Record<string, string> = {};
@@ -80,7 +80,7 @@ export async function cancelAuthorization(vehicleAuthorizationId: string): Promi
 
 /**
  * جلب آخر تفويض لمركبة حسب رقم اللوحة (بيانات المركبة والسائق).
- * يستدعي: GET /vehicle-authorizations/api/last-authorization-data?vehiclePlateName=...
+ * يستدعي: GET /vehicle-authorizations/support/last-authorization-data?vehiclePlateName=...
  * مع هيدر: Authorization: Bearer <token>
  */
 export async function fetchLastAuthorizationData(
@@ -116,6 +116,37 @@ export async function sendVehicleAuthorizationOTP(
     {},
     {
       params: { vehicleAuthorizationId },
+    }
+  );
+  return data;
+}
+
+/**
+ * جلب حالة التفويض من نظام تم
+ * GET /vehicle-authorizations/tamm-system/vehicle-authorization?serialNumber=...&iqamahNumber=...
+ */
+export interface TammVehicleAuthorizationResponse {
+  data?: {
+    authorizationStatus: string;
+    currentDriverName: string;
+    lastDriverName: string;
+  } | null;
+  isAuthorized?: boolean;
+  isSameSendDriver?: boolean;
+  error?: unknown;
+  success?: boolean;
+  message?: string;
+  status?: number;
+}
+
+export async function fetchTammVehicleAuthorization(
+  serialNumber: string,
+  iqamahNumber: string
+): Promise<TammVehicleAuthorizationResponse> {
+  const { data } = await api.get<TammVehicleAuthorizationResponse>(
+    `${AUTHORIZATIONS_ENDPOINT}/tamm-system/vehicle-authorization`,
+    {
+      params: { serialNumber, iqamahNumber },
     }
   );
   return data;

@@ -6,6 +6,7 @@ import { useLastAuthorizationData } from '@/hooks/useLastAuthorizationData';
 import { useVehicleEquipmentInfo } from '@/hooks/useVehicleEquipmentInfo';
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { useNotificationsContext } from "@/components/ui/Notifications";
+import { useAuth } from "@/contexts/AuthContext";
 import type { CreateVehicleEquipmentInventoryItemDto, CreateVehicleEquipmentInventoryDto } from "@/types/equipment";
 import { Portal } from "@/components/ui/Portal";
 import { EquipmentInventoryGrid, type EquipmentKey, EQUIPMENT_LABELS } from "@/components/ui/EquipmentInventoryGrid";
@@ -170,6 +171,7 @@ function VideoRecorder({ label, color, onRecorded }: { label: string; color: str
 
 // --- Main Component ---
 export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentInventoryModalProps) {
+  const { user } = useAuth();
   const [selectedVehicle, setSelectedVehicle] = useState("");
   const [vehicleAuthorizationId, setVehicleAuthorizationId] = useState<string | null>(null);
   const [supervisor, setSupervisor] = useState("");
@@ -253,19 +255,10 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
     else setVehicleAuthorizationId(null);
   }, [lastAuth.data?.id, selectedPlateName]);
 
-  /** تنبيهات عند تغيير المركبة */
+  /** تنبيهات عند تغيير المركبة - تم إلغاء التحقق من التفويض حسب الطلب */
   useEffect(() => {
     if (!selectedPlateName) return;
-    
-    // تنبيه: لا يوجد جرد للمركبة
-    if (!vehicleEquipmentLoading && (!vehicleEquipmentData || vehicleEquipmentData.length === 0)) {
-      showError('لا يوجد جرد معدات', `لا توجد بيانات جرد معدات للمركبة ${selectedPlateName}`);
-    }
-    
-    // تنبيه: حالة التفويض ملغي
-    if (!lastAuth.isLoading && lastAuth.data?.authorizationStatus === 'cancelled') {
-      showError('تفويض ملغي', `التفويض الأخير للمركبة ${selectedPlateName} في حالة ملغي`);
-    }
+    // لا نعرض تنبيهات مرتبطة بالتفويض أو الجرد عند عدم وجود تفويض
   }, [selectedPlateName, vehicleEquipmentData, vehicleEquipmentLoading, lastAuth.data?.authorizationStatus, lastAuth.isLoading]);
 
   useEffect(() => {
@@ -279,6 +272,17 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
     setSelectedVehicle(id);
     if (!id) setVehicleAuthorizationId(null);
   };
+
+  /** تعطيل الحقول عند اختيار مركبة بحالة تفويض ملغي أو سائق مستخدم أو اسم الفريق لا يحتوي CL */
+  const inventoryFieldsDisabled =
+    !!selectedVehicle &&
+    !lastAuth.isLoading &&
+    !!lastAuth.data &&
+    (
+      lastAuth.data.authorizationStatus === 'cancelled' ||
+      lastAuth.data.driverType === 'userDriver' ||
+      !(selectedVehicleData?.teamName?.toUpperCase().includes('CL'))
+    );
 
   const buildPayload = (): CreateVehicleEquipmentInventoryDto => {
     const items: CreateVehicleEquipmentInventoryItemDto[] = (Object.entries(equipment) as [EquipmentKey, number][]).map(
@@ -295,7 +299,7 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
       supervisorId: supervisorId ?? "",
       items,
       equipmentInventoryNote: notes || undefined,
-      equipmentInventoryDescription: supervisor ? `المشرف: ${supervisor}` : undefined,
+      equipmentInventoryDescription: (user?.username || user?.name || supervisor) ? `المشرف: ${user?.username || user?.name || supervisor}` : undefined,
       equipmentInventoryStatus: "check",
       teamWorkerCount,
     };
@@ -303,6 +307,7 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (inventoryFieldsDisabled) return;
     setPayloadToSend(buildPayload());
     setShowPayloadDialog(true);
   };
@@ -387,7 +392,7 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
                 required
               />
 
-              {selectedVehicle && (
+              {selectedVehicle && lastAuth.data && (
                 <VehicleDriverInfoCard
                   vehicleData={selectedVehicleData}
                   lastAuthData={lastAuth.data}
@@ -395,51 +400,28 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
                 />
               )}
 
-              {/* تحذير إذا كانت السيارة غير مفوضة */}
-              {selectedVehicle && lastAuth.data && lastAuth.data.authorizationStatus !== 'authorized' && (
-                <div style={{ background: "linear-gradient(135deg, #fef2f2, #fee2e2)", border: "2px solid #fca5a5", borderRadius: 16, padding: 20, marginTop: 16 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-                    <div style={{ width: 40, height: 40, background: "#dc2626", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: 20, fontWeight: 800 }}>⚠️</div>
-                    <h3 style={{ fontSize: 16, fontWeight: 800, color: "#991b1b", margin: 0 }}>السيارة غير مفوضة</h3>
-                  </div>
-                  <p style={{ fontSize: 14, color: "#7f1d1d", margin: 0, lineHeight: 1.6 }}>لا يمكن إجراء الجرد على هذه السيارة لأنها غير مفوضة حالياً. يرجى التأكد من حالة التفويض أولاً.</p>
+              {inventoryFieldsDisabled && (
+                <div style={{ background: "linear-gradient(135deg, #fef3c7, #fde68a)", border: "2px solid #f59e0b", borderRadius: 16, padding: 16, marginTop: 16 }}>
+                  <p style={{ fontSize: 13, color: "#92400e", margin: 0, lineHeight: 1.6 }}>
+                    لا يمكن إجراء الجرد: حالة التفويض ملغاة أو نوع السائق مستخدم أو اسم الفريق لا يحتوي على &quot;CL&quot;. تم تعطيل الحقول.
+                  </p>
                 </div>
               )}
 
-              {/* تحذير إذا لم تتحقق شروط عدد العمال واسم الفريق */}
-              {selectedVehicle && lastAuth.data && lastAuth.data.authorizationStatus === 'authorized' && selectedVehicleData && (
-                ((selectedVehicleData.workerCount ?? 0) === 0 || !selectedVehicleData.teamName?.includes('CL')) && (
-                  <div style={{ background: "linear-gradient(135deg, #fef2f2, #fee2e2)", border: "2px solid #fca5a5", borderRadius: 16, padding: 20, marginTop: 16 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-                      <div style={{ width: 40, height: 40, background: "#dc2626", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: 20, fontWeight: 800 }}>⚠️</div>
-                      <h3 style={{ fontSize: 16, fontWeight: 800, color: "#991b1b", margin: 0 }}>لا يمكن إجراء الجرد</h3>
-                    </div>
-                    <p style={{ fontSize: 14, color: "#7f1d1d", margin: 0, lineHeight: 1.6 }}>
-                      {(selectedVehicleData.workerCount ?? 0) === 0 && !selectedVehicleData.teamName?.includes('CL') 
-                        ? 'لا يمكن إجراء الجرد على هذه السيارة لأنه لا يوجد عمال (عدد العمال = 0) واسم الفريق لا يحتوي على "CL". يرجى التأكد من حالة التفويض أولاً.'
-                        : (selectedVehicleData.workerCount ?? 0) === 0 
-                        ? 'لا يمكن إجراء الجرد على هذه السيارة لأنه لا يوجد عمال (عدد العمال = 0). يرجى التأكد من تعيين العمال للمركبة أولاً.'
-                        : 'لا يمكن إجراء الجرد على هذه السيارة لأن اسم الفريق لا يحتوي على "CL". يرجى التأكد من اسم الفريق أولاً.'
-                      }
-                    </p>
-                  </div>
-                )
-              )}
+              {/* جرد المعدات والتصوير والحقول التالية ظاهرة دائماً */}
             </div>
 
-            {/* Equipment Inventory - استخدام المكون المشترك */}
-            {selectedVehicle && lastAuth.data && lastAuth.data.authorizationStatus === 'authorized' && selectedVehicleData && (selectedVehicleData.workerCount ?? 0) > 0 && selectedVehicleData.teamName?.includes('CL') && (
+            {/* Equipment Inventory - دائماً ظاهر */}
             <EquipmentInventoryGrid
               equipment={equipment}
               onChange={setEquipment}
               isLoading={vehicleEquipmentLoading}
               error={vehicleEquipmentError}
+              readOnly={inventoryFieldsDisabled}
             />
-            )}
 
-            {/* Video Recording Section */}
-            {selectedVehicle && lastAuth.data && lastAuth.data.authorizationStatus === 'authorized' && selectedVehicleData && (selectedVehicleData.workerCount ?? 0) > 0 && selectedVehicleData.teamName?.includes('CL') && (
-            <div style={{ background: "white", borderRadius: 16, padding: 22, border: "1px solid #e5e7eb" }}>
+            {/* Video Recording Section - دائماً ظاهر */}
+            <div style={{ opacity: inventoryFieldsDisabled ? 0.6 : 1, pointerEvents: inventoryFieldsDisabled ? 'none' : 'auto', background: "white", borderRadius: 16, padding: 22, border: "1px solid #e5e7eb" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
                 <div style={{ width: 8, height: 28, background: "linear-gradient(180deg, #8b5cf6, #a78bfa)", borderRadius: 99 }} />
                 <h3 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>تصوير فيديو</h3>
@@ -450,10 +432,8 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
                 <VideoRecorder label="فيديو المعدات" color="#f59e0b" onRecorded={(f) => setEquipmentVideoFile(f)} />
               </div>
             </div>
-            )}
 
-            {/* Additional Info */}
-            {selectedVehicle && lastAuth.data && lastAuth.data.authorizationStatus === 'authorized' && selectedVehicleData && (selectedVehicleData.workerCount ?? 0) > 0 && selectedVehicleData.teamName?.includes('CL') && (
+            {/* Additional Info - دائماً ظاهر */}
             <div style={{ background: "#f9fafb", borderRadius: 16, padding: 22, border: "1px solid #e5e7eb" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
                 <div style={{ width: 8, height: 28, background: "linear-gradient(180deg, #3b82f6, #60a5fa)", borderRadius: 99 }} />
@@ -462,36 +442,31 @@ export default function EquipmentInventoryModal({ isOpen, onClose }: EquipmentIn
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
                   <label style={{ fontSize: 13, fontWeight: 600, color: "#1f2937", display: "block", marginBottom: 8 }}>المشرف المسؤول <span style={{ color: "#ef4444" }}>*</span></label>
-                  <input type="text" value={supervisor} onChange={e => setSupervisor(e.target.value)} placeholder="مثال: محمد أحمد علي" required
-                    style={{ width: "100%", padding: "10px 14px", border: "1.5px solid #e5e7eb", borderRadius: 10, fontFamily: "inherit", fontSize: 14, color: "#1f2937", background: "white", outline: "none" }}
-                    onFocus={(e) => { e.currentTarget.style.borderColor = "#3b82f6"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(59, 130, 246, 0.1)"; }}
-                    onBlur={(e) => { e.currentTarget.style.borderColor = "#e5e7eb"; e.currentTarget.style.boxShadow = "none"; }} />
+                  <input type="text" value={supervisor || user?.username || user?.name || ""} readOnly disabled placeholder="مثال: محمد أحمد علي"
+                    style={{ width: "100%", padding: "10px 14px", border: "1.5px solid #e5e7eb", borderRadius: 10, fontFamily: "inherit", fontSize: 14, color: "#1f2937", background: "#f3f4f6", outline: "none", cursor: "not-allowed" }} />
                 </div>
                 <div>
                   <label style={{ fontSize: 13, fontWeight: 600, color: "#1f2937", display: "block", marginBottom: 8 }}>الملاحظات</label>
-                  <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="أدخل أي ملاحظات إضافية..." rows={3}
-                    style={{ width: "100%", padding: "10px 14px", border: "1.5px solid #e5e7eb", borderRadius: 10, fontFamily: "inherit", fontSize: 14, color: "#1f2937", background: "white", outline: "none", resize: "vertical" }}
+                  <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="أدخل أي ملاحظات إضافية..." rows={3} disabled={inventoryFieldsDisabled}
+                    style={{ width: "100%", padding: "10px 14px", border: "1.5px solid #e5e7eb", borderRadius: 10, fontFamily: "inherit", fontSize: 14, color: "#1f2937", background: inventoryFieldsDisabled ? "#f3f4f6" : "white", outline: "none", resize: "vertical", cursor: inventoryFieldsDisabled ? "not-allowed" : "text" }}
                     onFocus={(e) => { e.currentTarget.style.borderColor = "#3b82f6"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(59, 130, 246, 0.1)"; }}
                     onBlur={(e) => { e.currentTarget.style.borderColor = "#e5e7eb"; e.currentTarget.style.boxShadow = "none"; }} />
                 </div>
               </div>
             </div>
-            )}
 
-            {/* Actions */}
-            {selectedVehicle && lastAuth.data && lastAuth.data.authorizationStatus === 'authorized' && selectedVehicleData && (selectedVehicleData.workerCount ?? 0) > 0 && selectedVehicleData.teamName?.includes('CL') && (
+            {/* Actions - دائماً ظاهر */}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, paddingTop: 8 }}>
               <button type="button" onClick={onClose}
                 style={{ padding: "10px 24px", borderRadius: 10, border: "1.5px solid #e5e7eb", fontSize: 14, fontWeight: 700, color: "#6b7280", fontFamily: "inherit", background: "white", cursor: "pointer" }}>
                 إلغاء
               </button>
-              <button type="submit"
-                style={{ padding: "10px 28px", borderRadius: 10, background: "linear-gradient(135deg, #14b8a6, #0d9488)", border: "none", color: "white", fontSize: 14, fontWeight: 700, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", boxShadow: "0 4px 16px rgba(20, 184, 166, 0.4)" }}>
+              <button type="submit" disabled={inventoryFieldsDisabled}
+                style={{ padding: "10px 28px", borderRadius: 10, background: inventoryFieldsDisabled ? "#9ca3af" : "linear-gradient(135deg, #14b8a6, #0d9488)", border: "none", color: "white", fontSize: 14, fontWeight: 700, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8, cursor: inventoryFieldsDisabled ? "not-allowed" : "pointer", boxShadow: inventoryFieldsDisabled ? "none" : "0 4px 16px rgba(20, 184, 166, 0.4)", opacity: inventoryFieldsDisabled ? 0.8 : 1 }}>
                 <SaveIcon />
                 حفظ الجرد
               </button>
             </div>
-            )}
           </form>
         </div>
 

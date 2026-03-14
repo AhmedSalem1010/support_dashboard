@@ -11,6 +11,21 @@ import type {
 
 const ACCIDENTS_ENDPOINT = '/vehicle-accident';
 
+/** تنسيق التاريخ بصيغة yyyy-MM-dd */
+function formatDateForApi(dateStr: string | undefined): string | undefined {
+  if (!dateStr?.trim()) return undefined;
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  } catch {
+    return dateStr;
+  }
+}
+
 function buildListParams(params: FilterVehicleAccidentDto): Record<string, string | number> {
   const query: Record<string, string | number> = {};
   if (params.page != null) query.page = Number(params.page);
@@ -19,8 +34,14 @@ function buildListParams(params: FilterVehicleAccidentDto): Record<string, strin
   if (params.vehicleSerialNumber) query.vehicleSerialNumber = params.vehicleSerialNumber;
   if (params.vehicledriverName) query.vehicledriverName = params.vehicledriverName;
   if (params.vehicledriverJisr) query.vehicledriverJisr = params.vehicledriverJisr;
-  if (params.accidentStartDate) query.accidentStartDate = params.accidentStartDate;
-  if (params.accidentEndDate) query.accidentEndDate = params.accidentEndDate;
+  const startDate = formatDateForApi(params.accidentStartDate);
+  if (startDate) query.accidentStartDate = startDate;
+  const endDate = formatDateForApi(params.accidentEndDate);
+  if (endDate) query.accidentEndDate = endDate;
+  if (params.accidentStatus) query.accidentStatus = params.accidentStatus;
+  if (params.accidentSeverity) query.accidentSeverity = params.accidentSeverity;
+  if (params.accidentCostBearer) query.accidentCostBearer = params.accidentCostBearer;
+  if (params.accidentTammNumber) query.accidentTammNumber = params.accidentTammNumber;
   return query;
 }
 
@@ -63,6 +84,34 @@ export async function fetchAccidentsStatistics(): Promise<AccidentStatisticsResp
     message: response.data?.message || '',
     status: response.data?.status || 200,
   };
+}
+
+export interface UpdateVehicleAccidentStatusParams {
+  accidentTammNumber: string;
+  accidentStatus?: string;
+  accidentSeverity?: string;
+  accidentCostBearer?: string;
+  processNotes?: string;
+}
+
+/**
+ * تحديث حالة الحادث (إغلاق، خطورة، تحميل التكلفة)
+ * PATCH /vehicle-accident/support/update-vehicle-status
+ * يُرسل الحقول في body الطلب.
+ */
+export async function updateVehicleAccidentStatus(
+  params: UpdateVehicleAccidentStatusParams
+): Promise<{ success: boolean; data?: unknown; message?: string; error?: unknown }> {
+  const body: Record<string, string> = {
+    accidentTammNumber: params.accidentTammNumber,
+  };
+  if (params.accidentStatus != null) body.accidentStatus = params.accidentStatus;
+  if (params.accidentSeverity != null) body.accidentSeverity = params.accidentSeverity;
+  if (params.accidentCostBearer != null) body.accidentCostBearer = params.accidentCostBearer;
+  if (params.processNotes != null) body.processNotes = params.processNotes;
+
+  const response = await api.patch(`${ACCIDENTS_ENDPOINT}/support/update-vehicle-status`, body);
+  return response.data ?? { success: true };
 }
 
 /**

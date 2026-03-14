@@ -42,7 +42,7 @@ export async function fetchVehicleTools(
   vehicleId: string
 ): Promise<VehicleToolsApiResponse> {
   const { data } = await api.get<VehicleToolsApiResponse>(
-    `${VEHICLES_ENDPOINT}/api/vehicle-tools`,
+    `${VEHICLES_ENDPOINT}/support/vehicle-tools`,
     {
       params: { vehicleId },
     }
@@ -54,7 +54,7 @@ export async function updateVehicleTools(
   dto: UpdateVehicleToolsDto
 ): Promise<UpdateVehicleToolsApiResponse> {
   const { data } = await api.patch<UpdateVehicleToolsApiResponse>(
-    `${VEHICLES_ENDPOINT}/api/update-vehicle-tools`,
+    `${VEHICLES_ENDPOINT}/support/update-vehicle-tools`,
     dto
   );
   return data;

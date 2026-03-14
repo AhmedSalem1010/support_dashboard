@@ -1,16 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Plus, FileText, User, Car, Calendar, Package, Search, Filter, Download, X, Eye, Edit, XCircle, CheckCircle, AlertCircle, Clock, TrendingUp, Users, Shield, RefreshCw, Loader2, KeyRound } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Plus, FileText, User, Car, Calendar, Package, Search, Filter, Download, X, Eye, Edit, XCircle, CheckCircle, AlertCircle, Clock, TrendingUp, Users, Shield, RefreshCw, Loader2, KeyRound, Database } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Pagination } from '@/components/ui/Pagination';
+import { PageLoading } from '@/components/ui/PageLoading';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { useAuthorizations } from '@/hooks/useAuthorizations';
-import { cancelAuthorization, createAuthorization, sendVehicleAuthorizationOTP, verifyVehicleAuthorizationOTP } from '@/lib/api/authorizations';
+import { cancelAuthorization, createAuthorization, sendVehicleAuthorizationOTP, verifyVehicleAuthorizationOTP, fetchTammVehicleAuthorization } from '@/lib/api/authorizations';
 import type { CreateAuthorizationDto } from '@/types/authorization';
 import { createVehicleEquipmentInventory } from '@/lib/api/equipment';
 import type { CreateVehicleEquipmentInventoryDto, CreateVehicleEquipmentInventoryItemDto } from '@/types/equipment';
@@ -32,6 +33,8 @@ import { OTPDialog } from '@/components/ui/OTPDialog';
 import { RenewConfirmDialog } from '@/components/ui/RenewConfirmDialog';
 import { CancelAuthorizationDialog } from '@/components/ui/CancelAuthorizationDialog';
 import { DriverSearchFilter } from '@/components/ui/DriverSearchFilter';
+import { VehiclePlateInput } from '@/components/ui/VehiclePlateInput';
+import { useAuth } from '@/contexts/AuthContext';
 
 function addDaysToDate(dateStr: string, days: number): string {
   if (!dateStr || days <= 0) return '';
@@ -89,6 +92,7 @@ const API_ITEM_NAME_TO_EQUIPMENT_KEY: Record<string, EquipmentKey> = {
 };
 
 export function Authorizations() {
+  const { user } = useAuth();
   const { vehicleOptions } = useVehiclesList();
   const [formVehicleId, setFormVehicleId] = useState<string>('');
   const selectedPlateName = vehicleOptions.find((o) => o.value === formVehicleId)?.plateName ?? null;
@@ -100,10 +104,7 @@ export function Authorizations() {
   const [filters, setFilters] = useState({
     authorizationType: '',
     authorizationStatus: '',
-    vehiclePlatePart1: '',
-    vehiclePlatePart2: '',
-    vehiclePlatePart3: '',
-    vehiclePlateNumbers: '',
+    vehiclePlateName: '',
     driverName: '',
     driverTypeFilter: '', // 'employee' للموظف أو 'supervisor' لمشرف الفريق
     driverJisrId: '',
@@ -182,19 +183,11 @@ export function Authorizations() {
     return lastDriver.employeeData?.licenseStatus ?? null;
   };
 
-  // تجميع أجزاء لوحة المركبة
-  const vehiclePlateName = [
-    filters.vehiclePlatePart1,
-    filters.vehiclePlatePart2,
-    filters.vehiclePlatePart3,
-    filters.vehiclePlateNumbers
-  ].filter(Boolean).join(' ');
-
   const { authorizations, meta, isLoading, error, refetch, page, setPage } = useAuthorizations({
     limit: 10,
     authorizationType: filters.authorizationType || undefined,
     authorizationStatus: filters.authorizationStatus || undefined,
-    vehiclePlateName: vehiclePlateName || undefined,
+    vehiclePlateName: filters.vehiclePlateName?.trim() || undefined,
     driverName: (filters.driverTypeFilter === 'supervisor' && filters.driverName) || undefined,
     userDriverName: (filters.driverTypeFilter === 'employee' && filters.driverName) || undefined,
     driverJisrId: filters.driverJisrId || undefined,
@@ -216,6 +209,11 @@ export function Authorizations() {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelAuthData, setCancelAuthData] = useState<AuthorizationDisplay | null>(null);
+  const [showTammDialog, setShowTammDialog] = useState(false);
+  const [tammDialogAuth, setTammDialogAuth] = useState<AuthorizationDisplay | null>(null);
+  const [tammDialogData, setTammDialogData] = useState<{ authorizationStatus: string; currentDriverName: string; lastDriverName: string } | null>(null);
+  const [tammDialogLoading, setTammDialogLoading] = useState(false);
+  const [tammOverrides, setTammOverrides] = useState<Record<string, { authorizationStatus: string; currentDriverName: string; lastDriverName: string }>>({});
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [currentStep, setCurrentStep] = useState(1);
@@ -434,7 +432,7 @@ export function Authorizations() {
         vehicleAuthorizationId: createdAuthorizationId,
         items,
         equipmentInventoryType: 'authorization',
-        supervisorId: supervisorName || 'temp-supervisor-id',
+        supervisorId: user?.username || user?.name || supervisorName || 'temp-supervisor-id',
         equipmentInventoryDescription: vehicleDescription || undefined,
         teamWorkerCount,
         equipmentInventoryStatus: 'check',
@@ -493,6 +491,67 @@ export function Authorizations() {
   const handleRenewAuthorization = async (auth: AuthorizationDisplay) => {
     setRenewAuthData(auth);
     setShowRenewDialog(true);
+  };
+
+  const handleTammStatusClick = async (auth: AuthorizationDisplay) => {
+    const raw = auth.raw as any;
+    const serialNumber = raw?.vehicle?.serialNumber;
+    let iqamahNumber = raw?.driver?.employeeData?.iqamahNumber ?? raw?.userDriver?.employeeData?.iqamahNumber;
+    if (!iqamahNumber && usersWithWorkers.length > 0) {
+      const driverName = auth.driver || raw?.driver?.name || raw?.userDriver?.name;
+      const matchedUser = usersWithWorkers.find(
+        (u) =>
+          u.user_name === driverName ||
+          u.workers_name === driverName
+      );
+      iqamahNumber =
+        matchedUser?.userEmployeeData_iqamah_number ??
+        matchedUser?.workersEmployeeData_iqamah_number ??
+        matchedUser?.workersEmployeeData_personal_received ??
+        null;
+    }
+    if (!serialNumber || !iqamahNumber) {
+      showError('بيانات ناقصة', 'رقم التسلسل أو رقم الإقامة غير متوفر لهذا التفويض. تأكد من إضافة رقم الإقامة للمستخدم في صفحة المستخدمين.');
+      return;
+    }
+    setTammDialogAuth(auth);
+    setTammDialogData(null);
+    setShowTammDialog(true);
+    setTammDialogLoading(true);
+    try {
+      const response = await fetchTammVehicleAuthorization(serialNumber, iqamahNumber);
+      if (response.data) {
+        setTammDialogData(response.data);
+      } else {
+        setTammDialogData({
+          authorizationStatus: response.message || '—',
+          currentDriverName: '—',
+          lastDriverName: '—',
+        });
+      }
+    } catch (err: any) {
+      const errData = err?.response?.data;
+      if (errData?.data) {
+        setTammDialogData(errData.data);
+      } else {
+        showError('فشل جلب بيانات تم', err?.response?.data?.message || err?.message || 'حدث خطأ');
+        setShowTammDialog(false);
+      }
+    } finally {
+      setTammDialogLoading(false);
+    }
+  };
+
+  const closeTammDialog = () => {
+    if (tammDialogAuth && tammDialogData) {
+      setTammOverrides((prev) => ({
+        ...prev,
+        [tammDialogAuth.id]: tammDialogData,
+      }));
+    }
+    setShowTammDialog(false);
+    setTammDialogAuth(null);
+    setTammDialogData(null);
   };
 
   const confirmRenewAuthorization = async () => {
@@ -572,10 +631,7 @@ export function Authorizations() {
     setFilters({
       authorizationType: '',
       authorizationStatus: '',
-      vehiclePlatePart1: '',
-      vehiclePlatePart2: '',
-      vehiclePlatePart3: '',
-      vehiclePlateNumbers: '',
+      vehiclePlateName: '',
       driverName: '',
       driverTypeFilter: '',
       driverJisrId: '',
@@ -588,8 +644,18 @@ export function Authorizations() {
     setPage(1);
   };
 
-  // البيانات من API بعد التصفية من الخادم
-  const displayedAuthorizations = authorizations;
+  // البيانات من API مع دمج تحديثات تم (عند إغلاق الديلوج)
+  const displayedAuthorizations = useMemo(() => {
+    return authorizations.map((auth) => {
+      const override = tammOverrides[auth.id];
+      if (!override) return auth;
+      return {
+        ...auth,
+        status: override.authorizationStatus,
+        driver: override.currentDriverName,
+      };
+    });
+  }, [authorizations, tammOverrides]);
 
   // Statistics (من الصفحة الحالية)
   const stats = {
@@ -706,6 +772,16 @@ export function Authorizations() {
       label: 'الإجراءات',
       render: (_: unknown, row: any) => (
         <div className="flex items-center gap-1">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleTammStatusClick(row);
+            }}
+            className="p-2 hover:bg-amber-50 rounded-lg transition-colors group"
+            title="حالة التفويض من تم"
+          >
+            <Database className="w-4 h-4 text-gray-400 group-hover:text-amber-600" />
+          </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -966,41 +1042,11 @@ export function Authorizations() {
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-[#4d647c] mb-2">لوحة المركبة</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={filters.vehiclePlatePart1}
-                    onChange={(e) => updateFilter('vehiclePlatePart1', e.target.value)}
-                    placeholder="حرف"
-                    maxLength={1}
-                    className="w-12 p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white text-center"
-                  />
-                  <input
-                    type="text"
-                    value={filters.vehiclePlatePart2}
-                    onChange={(e) => updateFilter('vehiclePlatePart2', e.target.value)}
-                    placeholder="حرف"
-                    maxLength={1}
-                    className="w-12 p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white text-center"
-                  />
-                  <input
-                    type="text"
-                    value={filters.vehiclePlatePart3}
-                    onChange={(e) => updateFilter('vehiclePlatePart3', e.target.value)}
-                    placeholder="حرف"
-                    maxLength={1}
-                    className="w-12 p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white text-center"
-                  />
-                  <input
-                    type="text"
-                    value={filters.vehiclePlateNumbers}
-                    onChange={(e) => updateFilter('vehiclePlateNumbers', e.target.value)}
-                    placeholder="2589"
-                    maxLength={4}
-                    className="flex-1 p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white text-center"
-                  />
-                </div>
+                <VehiclePlateInput
+                  value={filters.vehiclePlateName}
+                  onChange={(v) => updateFilter('vehiclePlateName', v)}
+                  label="لوحة المركبة"
+                />
               </div>
 
               <DriverSearchFilter
@@ -1081,9 +1127,7 @@ export function Authorizations() {
 
       {/* Loading / Error */}
       {isLoading && (
-        <Card className="flex items-center justify-center py-16">
-          <Loader2 className="w-10 h-10 animate-spin text-[#09b9b5]" />
-        </Card>
+        <PageLoading message="جاري تحميل التفويضات..." />
       )}
       {error && (
         <Card className="border-red-200 bg-red-50 text-red-700 py-4 px-4">
@@ -1187,7 +1231,17 @@ export function Authorizations() {
 
                   {/* Actions */}
                   <div className="flex gap-2 pt-2 border-t border-gray-100">
-                    <button className="flex-1 py-2 px-3 bg-[#09b9b5] hover:bg-[#0da9a5] text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleTammStatusClick(auth); }}
+                      className="p-2 hover:bg-amber-50 rounded-lg transition-colors"
+                      title="حالة التفويض من تم"
+                    >
+                      <Database className="w-4 h-4 text-amber-600" />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setSelectedAuth(auth); }}
+                      className="flex-1 py-2 px-3 bg-[#09b9b5] hover:bg-[#0da9a5] text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
+                    >
                       <Eye className="w-4 h-4" />
                       عرض التفاصيل
                     </button>
@@ -1615,10 +1669,11 @@ export function Authorizations() {
                       </label>
                       <input
                         type="text"
-                        value={supervisorName}
-                        onChange={(e) => setSupervisorName(e.target.value)}
+                        value={supervisorName || user?.username || user?.name || ''}
+                        readOnly
+                        disabled
                         placeholder="أدخل اسم المشرف المسلم"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
                       />
                     </div>
 
@@ -2008,6 +2063,61 @@ export function Authorizations() {
         endDate={cancelAuthData?.endDate || ''}
         isLoading={cancellingId === cancelAuthData?.id}
       />
+
+      {/* TAMM Status Dialog */}
+      {showTammDialog && (
+        <Portal>
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4 animate-fadeIn"
+            onClick={closeTammDialog}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden animate-slideUp"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="bg-gradient-to-r from-amber-500 to-amber-600 p-4 text-white flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Database className="w-6 h-6" />
+                  <h3 className="text-lg font-bold">حالة التفويض من نظام تم</h3>
+                </div>
+                <button
+                  onClick={closeTammDialog}
+                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                {tammDialogLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+                  </div>
+                ) : tammDialogData ? (
+                  <>
+                    <div className="p-4 bg-gray-50 rounded-xl">
+                      <p className="text-sm text-gray-500 mb-1">حالة التفويض</p>
+                      <p className="font-semibold text-gray-900">{statusToArabic(tammDialogData.authorizationStatus)}</p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-xl">
+                      <p className="text-sm text-gray-500 mb-1">السائق الحالي</p>
+                      <p className="font-semibold text-gray-900">{tammDialogData.currentDriverName}</p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-xl">
+                      <p className="text-sm text-gray-500 mb-1">السائق السابق</p>
+                      <p className="font-semibold text-gray-900">{tammDialogData.lastDriverName}</p>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+              <div className="p-4 border-t bg-gray-50">
+                <Button variant="primary" onClick={closeTammDialog} className="w-full">
+                  إغلاق
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Portal>
+      )}
     </div>
   );
 }

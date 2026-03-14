@@ -49,7 +49,9 @@ export interface VehicleAccidentItem {
   accidentNote: string | null;
   accidentCost: string | null;
   accidentCostBearer: string | null;
+  accidentVideoId: string | null;
   vehicleAuthorization?: VehicleAccidentAuthorization | null;
+  vehicle?: { plateName: string } | null;
 }
 
 export interface AccidentListMeta {
@@ -75,6 +77,10 @@ export interface FilterVehicleAccidentDto {
   vehicledriverJisr?: string;
   accidentStartDate?: string;
   accidentEndDate?: string;
+  accidentStatus?: string;
+  accidentSeverity?: string;
+  accidentCostBearer?: string;
+  accidentTammNumber?: string;
 }
 
 export interface AccidentStatistics {

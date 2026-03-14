@@ -36,6 +36,10 @@ export function useAccidentsList(
         vehicledriverJisr: params.vehicledriverJisr || undefined,
         accidentStartDate: params.accidentStartDate || undefined,
         accidentEndDate: params.accidentEndDate || undefined,
+        accidentStatus: params.accidentStatus || undefined,
+        accidentSeverity: params.accidentSeverity || undefined,
+        accidentCostBearer: params.accidentCostBearer || undefined,
+        accidentTammNumber: params.accidentTammNumber || undefined,
       });
       setData(res.data ?? []);
       setMeta(res.meta ?? null);
@@ -55,6 +59,10 @@ export function useAccidentsList(
     params.vehicledriverJisr,
     params.accidentStartDate,
     params.accidentEndDate,
+    params.accidentStatus,
+    params.accidentSeverity,
+    params.accidentCostBearer,
+    params.accidentTammNumber,
   ]);
 
   useEffect(() => {

@@ -52,6 +52,14 @@ export const ACCIDENT_SEVERITY_LABELS: Record<string, string> = {
   severe: 'خطير',
 };
 
+/** تحميل تكلفة الحادث (AccidentCostBearer) */
+export const ACCIDENT_COST_BEARER_LABELS: Record<string, string> = {
+  company: 'الشركة',
+  driver: 'السائق',
+  insurance: 'التأمين',
+  third_party: 'طرف ثالث',
+};
+
 /** نوع التفويض */
 export const AUTHORIZATION_TYPE_LABELS: Record<string, string> = {
   tamm_and_local: 'تم + محلي',

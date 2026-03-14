@@ -10,6 +10,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { RepairTypeSelector, type RepairTypeItem } from '@/components/ui/RepairTypeSelector';
+import { PageLoading } from '@/components/ui/PageLoading';
 import { useVehiclesList } from '@/hooks/useVehiclesList';
 import { useLastAuthorizationData } from '@/hooks/useLastAuthorizationData';
 import VehicleDriverInfoCard from '@/components/ui/VehicleDriverInfoCard';
@@ -18,10 +19,13 @@ import { Portal } from '@/components/ui/Portal';
 import { useNotificationsContext } from '@/components/ui/Notifications';
 import { createVehicleMaintaince, updateVehicleMaintaince, uploadMaintenanceImages } from '@/lib/api/maintenance';
 import { useMaintenanceList } from '@/hooks/useMaintenanceList';
+import { VehiclePlateInput } from '@/components/ui/VehiclePlateInput';
 import { useMaintenanceStatistics } from '@/hooks/useMaintenanceStatistics';
+import { useAuth } from '@/contexts/AuthContext';
 import type { VehicleMaintainceItem } from '@/types/maintenance';
 
 export function Maintenance() {
+  const { user } = useAuth();
   const { success: showSuccess, error: showError, loading: showLoading, removeNotification } = useNotificationsContext();
   const [showModal, setShowModal] = useState(false);
   const [selectedMaintenance, setSelectedMaintenance] = useState<any>(null);
@@ -620,25 +624,12 @@ export function Maintenance() {
       {/* Search and Filters */}
       <Card className="border-t-4 border-[#09b9b5]">
         <div className="space-y-4">
-          {/* Search Bar */}
-          <div className="relative">
-            <Search className="absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="ابحث عن سجل صيانة بالمركبة، النوع، أو السائق..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pr-12 pl-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#09b9b5] focus:border-transparent transition-all text-right"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="absolute left-4 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <X className="w-4 h-4 text-gray-400" />
-              </button>
-            )}
-          </div>
+          {/* Search by Vehicle Plate */}
+          <VehiclePlateInput
+            value={searchTerm}
+            onChange={setSearchTerm}
+            label="بحث بلوحة المركبة"
+          />
 
           {/* Filters */}
           {showFilters && (
@@ -687,7 +678,7 @@ export function Maintenance() {
               </div>
 
               {/* Reset Button */}
-              {(filterType || filterStatus || filterCostOn) && (
+              {(filterType || filterStatus || filterCostOn || searchTerm) && (
                 <div className="sm:col-span-3 flex justify-end">
                   <Button
                     variant="outline"
@@ -809,10 +800,7 @@ export function Maintenance() {
         <>
           <Card>
             {maintenanceLoading ? (
-              <div className="flex items-center justify-center gap-2 py-12 text-gray-500">
-                <div className="w-6 h-6 border-2 border-[#09b9b5] border-t-transparent rounded-full animate-spin" />
-                <span>جاري تحميل سجلات الصيانة...</span>
-              </div>
+              <PageLoading message="جاري تحميل سجلات الصيانة..." wrapInCard={false} />
             ) : (
               <>
                 <Table 
@@ -828,9 +816,8 @@ export function Maintenance() {
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {maintenanceLoading ? (
-              <div className="col-span-full flex items-center justify-center gap-2 py-12 text-gray-500">
-                <div className="w-6 h-6 border-2 border-[#09b9b5] border-t-transparent rounded-full animate-spin" />
-                <span>جاري تحميل سجلات الصيانة...</span>
+              <div className="col-span-full">
+                <PageLoading message="جاري تحميل سجلات الصيانة..." wrapInCard={false} />
               </div>
             ) : (
               filteredRecords.map((record, index) => (
@@ -1101,7 +1088,7 @@ export function Maintenance() {
                       maintanceCostBearer: formData.costOn,
                       maintanceParts: repairTypeSelections.length > 0 ? repairTypeSelections.map((s) => s.label).join('، ') : formData.description,
                       maintainceNote: formData.description,
-                      maintainceSupervisorName: formData.supervisorName || '—',
+                      maintainceSupervisorName: user?.username || user?.name || formData.supervisorName || '—',
                       maintainceCost: Number(formData.amount) || 0,
                     };
                     
@@ -1160,7 +1147,7 @@ export function Maintenance() {
                     maintanceCostBearer: formData.costOn,
                     maintanceParts: repairTypeSelections.length > 0 ? repairTypeSelections.map((s) => s.label).join('، ') : formData.description,
                     maintainceNote: formData.description,
-                    maintainceSupervisorName: formData.supervisorName || '—',
+                    maintainceSupervisorName: user?.username || user?.name || formData.supervisorName || '—',
                     maintainceCost: Number(formData.amount) || 0,
                   });
                   
@@ -1296,9 +1283,10 @@ export function Maintenance() {
                     </label>
                     <input
                       type="text"
-                      value={formData.supervisorName}
-                      onChange={(e) => setFormData({ ...formData, supervisorName: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5]"
+                      value={formData.supervisorName || user?.username || user?.name || ''}
+                      readOnly
+                      disabled
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
                       placeholder="اسم المشرف"
                     />
                   </div>

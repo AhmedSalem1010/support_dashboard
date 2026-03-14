@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Package, Filter, Download, X, Eye, CheckCircle, XCircle, AlertCircle, AlertTriangle, Car, User, Calendar, Shield, Loader2, FileText, ClipboardCheck, Search } from 'lucide-react';
+import { Package, Filter, Download, X, Eye, CheckCircle, XCircle, AlertCircle, AlertTriangle, Car, User, Calendar, Shield, FileText, ClipboardCheck, Search, ThumbsUp, ThumbsDown } from 'lucide-react';
 import InspectionModal from '@/components/pages/Inspection';
 import EquipmentInventoryModal from '@/components/pages/EquipmentInventoryModal';
 import { Card } from '@/components/ui/Card';
@@ -9,14 +9,18 @@ import { Button } from '@/components/ui/Button';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Pagination } from '@/components/ui/Pagination';
-import { fetchEquipmentInventories } from '@/lib/api/equipment';
+import { PageLoading } from '@/components/ui/PageLoading';
+import { fetchEquipmentInventories, updateEquipmentInventoryStatus } from '@/lib/api/equipment';
 import type { VehicleEquipmentInventory, EquipmentInventoryStatus, EquipmentInventoryType } from '@/types/equipment';
 import { EQUIPMENT_INVENTORY_STATUS_LABELS, ITEM_INVENTORY_STATUS_LABELS, getLabel } from '@/lib/enums';
 import { useNotificationsContext } from '@/components/ui/Notifications';
 import { Portal } from '@/components/ui/Portal';
 import { DriverSearchFilter } from '@/components/ui/DriverSearchFilter';
+import { VehiclePlateInput } from '@/components/ui/VehiclePlateInput';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function Equipment() {
+  const { user } = useAuth();
   const [inventories, setInventories] = useState<VehicleEquipmentInventory[]>([]);
   const [meta, setMeta] = useState<{ total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPreviousPage: boolean } | null>(null);
   const [selectedInventory, setSelectedInventory] = useState<VehicleEquipmentInventory | null>(null);
@@ -37,17 +41,48 @@ export function Equipment() {
   });
   const [showInspectionModal, setShowInspectionModal] = useState(false);
   const [showInventoryModal, setShowInventoryModal] = useState(false);
+  const [processModalInventory, setProcessModalInventory] = useState<VehicleEquipmentInventory | null>(null);
+  const [processNotes, setProcessNotes] = useState('');
+  const [detailsProcessNotes, setDetailsProcessNotes] = useState('');
+  const [processSubmitting, setProcessSubmitting] = useState(false);
   const { error: showError, success: showSuccess, info } = useNotificationsContext();
 
+  const canShowAcceptReject = (type: string) => type === 'inventory' || type === 'weekly_check';
+
+  const openProcessModal = (inventory: VehicleEquipmentInventory) => {
+    setProcessModalInventory(inventory);
+    setProcessNotes('');
+  };
+
+  const handleAcceptReject = async (inventory: VehicleEquipmentInventory, status: 'accepted' | 'rejected', notes: string, closeDetailsModal = false) => {
+    setProcessSubmitting(true);
+    try {
+      const res = await updateEquipmentInventoryStatus(inventory.id, status, notes);
+      if (res?.success) {
+        setProcessModalInventory(null);
+        showSuccess(status === 'accepted' ? 'تم القبول' : 'تم الرفض', res.message || (status === 'accepted' ? 'تم قبول الجرد' : 'تم رفض الجرد'));
+        loadInventories();
+        if (closeDetailsModal) setSelectedInventory(null);
+      } else {
+        showError('فشل', res?.message || 'حدث خطأ');
+      }
+    } catch (err) {
+      showError('فشل', err instanceof Error ? err.message : 'حدث خطأ أثناء التحديث');
+    } finally {
+      setProcessSubmitting(false);
+    }
+  };
+
   const updateFilter = (key: keyof typeof filters, value: string) => { setFilters(prev => ({ ...prev, [key]: value })); setPage(1); };
-  const hasActiveFilters = Object.values(filters).some(Boolean);
+  const supervisorDisplayName = user?.username || user?.name || '';
+  const hasActiveFilters = filters.vehiclePlateName || filters.vehicleSerialNumber || filters.driverName || filters.driverTypeFilter || filters.equipmentInventoryStatus || filters.equipmentInventoryType || filters.createdAt;
   const clearFilters = () => {
     setFilters({
       vehiclePlateName: '',
       vehicleSerialNumber: '',
       driverName: '',
       driverTypeFilter: '',
-      supervisorName: '',
+      supervisorName: supervisorDisplayName,
       equipmentInventoryStatus: '',
       equipmentInventoryType: '',
       createdAt: '',
@@ -55,7 +90,12 @@ export function Equipment() {
     setPage(1);
   };
 
+  useEffect(() => {
+    if (supervisorDisplayName) setFilters((f) => ({ ...f, supervisorName: supervisorDisplayName }));
+  }, [supervisorDisplayName]);
+
   useEffect(() => { loadInventories(); }, [page, filters]);
+  useEffect(() => { if (selectedInventory) setDetailsProcessNotes(''); }, [selectedInventory?.id]);
 
   const loadInventories = async () => {
     setIsLoading(true); setError(null);
@@ -69,7 +109,7 @@ export function Equipment() {
         vehicleSerialNumber: filters.vehicleSerialNumber || undefined,
         driverName: (filters.driverTypeFilter === 'supervisor' && filters.driverName) || undefined,
         userDriverName: (filters.driverTypeFilter === 'employee' && filters.driverName) || undefined,
-        supervisorName: filters.supervisorName || undefined,
+        supervisorName: (filters.supervisorName || supervisorDisplayName) || undefined,
         createdAt: filters.createdAt || undefined,
       });
       setInventories(response.data); setMeta(response.meta);
@@ -130,7 +170,21 @@ export function Equipment() {
     { key: 'equipmentInventoryType', label: 'النوع', render: (value: unknown) => (<Badge variant={getTypeBadge(value as EquipmentInventoryType).variant}>{getTypeBadge(value as EquipmentInventoryType).label}</Badge>) },
     { key: 'equipmentInventoryStatus', label: 'الحالة', render: (value: unknown) => { const s = getStatusBadge(value as EquipmentInventoryStatus); const Icon = value === 'check' ? CheckCircle : value === 'not_check' ? AlertCircle : value === 'rejected' ? XCircle : CheckCircle; return (<Badge variant={s.variant} className="flex items-center gap-1.5"><Icon className="w-3.5 h-3.5" />{s.label}</Badge>); } },
     { key: 'createdAt', label: 'تاريخ الإنشاء', render: (value: unknown) => { const date = new Date(value as string); return (<div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-gray-400" /><span className="text-sm">{date.toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' })}</span></div>); } },
-    { key: 'actions', label: 'الإجراءات', render: (_: unknown, row: any) => (<div className="flex items-center gap-1"><button onClick={(e) => { e.stopPropagation(); setSelectedInventory(row as VehicleEquipmentInventory); }} className="p-2 hover:bg-blue-50 rounded-lg transition-colors group" title="عرض التفاصيل"><Eye className="w-4 h-4 text-gray-400 group-hover:text-blue-600" /></button></div>) },
+    { key: 'actions', label: 'الإجراءات', render: (_: unknown, row: any) => (
+      <div className="flex items-center gap-1">
+        <button onClick={(e) => { e.stopPropagation(); setSelectedInventory(row as VehicleEquipmentInventory); }} className="p-2 hover:bg-blue-50 rounded-lg transition-colors group" title="عرض التفاصيل"><Eye className="w-4 h-4 text-gray-400 group-hover:text-blue-600" /></button>
+        {canShowAcceptReject(row.equipmentInventoryType) && (row.equipmentInventoryStatus === 'check' || row.equipmentInventoryStatus === 'not_check') && (
+          <button
+            onClick={(e) => { e.stopPropagation(); openProcessModal(row); }}
+            className="p-2 hover:bg-[#09b9b5]/10 rounded-lg transition-colors group"
+            title="معالجة الجرد - قبول أو رفض"
+            disabled={processSubmitting}
+          >
+            <ClipboardCheck className="w-4 h-4 text-gray-400 group-hover:text-[#09b9b5]" />
+          </button>
+        )}
+      </div>
+    ) },
   ];
 
   return (
@@ -251,8 +305,11 @@ export function Equipment() {
           {showFilters && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 p-4 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-100 animate-slideDown">
               <div>
-                <label className="block text-sm font-medium text-[#4d647c] mb-2">لوحة المركبة</label>
-                <input type="text" value={filters.vehiclePlateName} onChange={(e) => updateFilter('vehiclePlateName', e.target.value)} placeholder="مثال: ر أ ص 8299" className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white" />
+                <VehiclePlateInput
+                  value={filters.vehiclePlateName}
+                  onChange={(v) => updateFilter('vehiclePlateName', v)}
+                  label="لوحة المركبة"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-[#4d647c] mb-2">الرقم التسلسلي للمركبة</label>
@@ -266,7 +323,7 @@ export function Equipment() {
               />
               <div>
                 <label className="block text-sm font-medium text-[#4d647c] mb-2">اسم المشرف</label>
-                <input type="text" value={filters.supervisorName} onChange={(e) => updateFilter('supervisorName', e.target.value)} placeholder="اسم المشرف" className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] transition-all duration-200 bg-white" />
+                <input type="text" value={supervisorDisplayName} readOnly disabled placeholder="اسم المشرف" className="w-full p-2.5 text-sm border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed text-gray-700" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-[#4d647c] mb-2">حالة الجرد</label>
@@ -313,7 +370,7 @@ export function Equipment() {
       )}
 
       {/* Loading / Error */}
-      {isLoading && (<Card className="flex items-center justify-center py-16"><Loader2 className="w-10 h-10 animate-spin text-[#09b9b5]" /></Card>)}
+      {isLoading && <PageLoading message="جاري تحميل جرد المعدات..." />}
       {error && (<Card className="border-red-200 bg-red-50 text-red-700 py-4 px-4">{error}</Card>)}
 
       {/* Table / Grid */}
@@ -363,9 +420,19 @@ export function Equipment() {
                     <div className="flex items-center gap-1.5 text-sm text-gray-600"><Calendar className="w-4 h-4" /><span>{new Date(inventory.createdAt).toLocaleDateString('ar-SA')}</span></div>
                   </div>
                   <div className="flex gap-2 pt-2 border-t border-gray-100">
-                    <button onClick={() => setSelectedInventory(inventory)} className="flex-1 py-2 px-3 bg-[#09b9b5] hover:bg-[#0da9a5] text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5">
+                    <button onClick={(e) => { e.stopPropagation(); setSelectedInventory(inventory); }} className="flex-1 py-2 px-3 bg-[#09b9b5] hover:bg-[#0da9a5] text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5">
                       <Eye className="w-4 h-4" />عرض التفاصيل
                     </button>
+                    {canShowAcceptReject(inventory.equipmentInventoryType) && (inventory.equipmentInventoryStatus === 'check' || inventory.equipmentInventoryStatus === 'not_check') && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openProcessModal(inventory); }}
+                        className="p-2 border border-[#09b9b5]/30 rounded-lg hover:bg-[#09b9b5]/10 transition-colors"
+                        title="معالجة - قبول أو رفض"
+                        disabled={processSubmitting}
+                      >
+                        <ClipboardCheck className="w-5 h-5 text-[#09b9b5]" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </Card>
@@ -505,17 +572,87 @@ export function Equipment() {
               )}
 
               {/* Actions */}
-              <div className="flex gap-3 pt-4 border-t border-gray-200">
-                <Button variant="outline" className="flex-1 group" onClick={() => setSelectedInventory(null)}>
-                  <X className="w-4 h-4 ml-2" />
-                  إغلاق
-                </Button>
+              <div className="flex flex-col gap-4 pt-4 border-t border-gray-200">
+                {canShowAcceptReject(selectedInventory.equipmentInventoryType) && (selectedInventory.equipmentInventoryStatus === 'check' || selectedInventory.equipmentInventoryStatus === 'not_check') && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">ملاحظات المعالجة (اختياري)</label>
+                    <textarea
+                      value={detailsProcessNotes}
+                      onChange={(e) => setDetailsProcessNotes(e.target.value)}
+                      placeholder="أضف ملاحظات عند القبول أو الرفض..."
+                      rows={2}
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] focus:border-transparent resize-none mb-3"
+                    />
+                  </div>
+                )}
+                <div className="flex gap-3 flex-wrap">
+                  {canShowAcceptReject(selectedInventory.equipmentInventoryType) && (selectedInventory.equipmentInventoryStatus === 'check' || selectedInventory.equipmentInventoryStatus === 'not_check') && (
+                    <>
+                      <Button variant="primary" className="flex-1 group" onClick={() => handleAcceptReject(selectedInventory, 'accepted', detailsProcessNotes, true)} disabled={processSubmitting}>
+                        <ThumbsUp className="w-4 h-4 ml-2" />
+                        قبول
+                      </Button>
+                      <Button variant="secondary" className="flex-1 group" onClick={() => handleAcceptReject(selectedInventory, 'rejected', detailsProcessNotes, true)} disabled={processSubmitting}>
+                        <ThumbsDown className="w-4 h-4 ml-2" />
+                        مرفوض
+                      </Button>
+                    </>
+                  )}
+                  <Button variant="outline" className="flex-1 group" onClick={() => setSelectedInventory(null)}>
+                    <X className="w-4 h-4 ml-2" />
+                    إغلاق
+                  </Button>
+                </div>
               </div>
 
             </div>
           </div>
         </div>
       </Portal>
+      )}
+
+      {/* Process Modal - معالجة الجرد (قبول/رفض) مع الملاحظات */}
+      {processModalInventory && (
+        <Portal>
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4 animate-fadeIn" onClick={() => !processSubmitting && setProcessModalInventory(null)}>
+            <div className="bg-white rounded-2xl shadow-lg max-w-md w-full animate-slideUp" onClick={(e) => e.stopPropagation()}>
+              <div className="relative bg-gradient-to-r from-[#09b9b5] to-[#0da9a5] p-6 text-white">
+                <button type="button" onClick={() => !processSubmitting && setProcessModalInventory(null)} className="absolute top-4 left-4 p-2 hover:bg-white/20 rounded-lg transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl">
+                    <ClipboardCheck className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">معالجة الجرد</h2>
+                    <p className="text-white/90 text-sm">{processModalInventory.vehicleAuthorization?.vehicle?.plateName} - {processModalInventory.id.slice(0, 8)}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">ملاحظات (اختياري)</label>
+                  <textarea
+                    value={processNotes}
+                    onChange={(e) => setProcessNotes(e.target.value)}
+                    placeholder="أضف ملاحظات المعالجة..."
+                    rows={3}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#09b9b5] focus:border-transparent resize-none"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <Button variant="primary" className="flex-1" onClick={() => handleAcceptReject(processModalInventory, 'accepted', processNotes)} disabled={processSubmitting}>
+                    <ThumbsUp className="w-4 h-4 ml-2" /> قبول
+                  </Button>
+                  <Button variant="secondary" className="flex-1" onClick={() => handleAcceptReject(processModalInventory, 'rejected', processNotes)} disabled={processSubmitting}>
+                    <ThumbsDown className="w-4 h-4 ml-2" /> مرفوض
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Portal>
       )}
 
       {/* Modals */}

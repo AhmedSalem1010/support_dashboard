@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Filter, Download, Car, Calendar, Shield, CheckCircle, Search, X, Edit, Trash2, Eye, FileText, AlertCircle, TrendingUp, Fuel, Settings, MapPin, Loader2 } from 'lucide-react';
+import { Plus, Filter, Download, Car, Calendar, Shield, CheckCircle, Search, X, Edit, Trash2, Eye, FileText, AlertCircle, TrendingUp, Fuel, Settings, MapPin } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Pagination } from '@/components/ui/Pagination';
+import { PageLoading } from '@/components/ui/PageLoading';
 import { useVehicles } from '@/hooks/useVehicles';
 import { useLastAuthorizationData } from '@/hooks/useLastAuthorizationData';
 import { VehicleDriverSummary } from '@/components/ui/VehicleDriverSummary';
@@ -495,10 +496,7 @@ export function Vehicles() {
 
       {/* Loading / Error */}
       {isLoading && (
-        <div className="flex items-center justify-center py-12 gap-3 text-[#09b9b5]">
-          <Loader2 className="w-8 h-8 animate-spin" />
-          <span>جاري تحميل المركبات...</span>
-        </div>
+        <PageLoading message="جاري تحميل المركبات..." wrapInCard={false} />
       )}
       {error && (
         <Card className="border-red-200 bg-red-50">
@@ -748,10 +746,16 @@ export function Vehicles() {
                 </div>
               </div>
 
-              {/* VIN Info */}
-              <div className="p-4 bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-xl border border-gray-200">
-                <p className="text-sm text-gray-600 mb-1">رقم الشاسيه (VIN)</p>
-                <p className="font-mono text-lg font-bold text-gray-900">{selectedVehicle.vin}</p>
+              {/* Serial Number & VIN */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-4 bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-xl border border-gray-200">
+                  <p className="text-sm text-gray-600 mb-1">رقم التسلسلي</p>
+                  <p className="font-mono text-lg font-bold text-gray-900">{selectedVehicle.serialNumber || '—'}</p>
+                </div>
+                <div className="p-4 bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-xl border border-gray-200">
+                  <p className="text-sm text-gray-600 mb-1">رقم الشاسيه (VIN)</p>
+                  <p className="font-mono text-lg font-bold text-gray-900">{selectedVehicle.vin || '—'}</p>
+                </div>
               </div>
 
               {/* Actions */}
