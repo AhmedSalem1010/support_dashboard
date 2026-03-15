@@ -1,15 +1,20 @@
 /**
  * إعدادات واجهة برمجة التطبيقات (API)
- * - NEXT_PUBLIC_AUTH_API_BASE_URL: OTP, auth, users/profile
- * - NEXT_PUBLIC_API_BASE_URL: باقي الـ endpoints (localhost)
+ * - NEXT_PUBLIC_AUTH_API_BASE_URL: المصادقة والملف الشخصي و FCM
+ * - NEXT_PUBLIC_API_BASE_URL: باقي الـ endpoints (إن وُجد، وإلا يُستخدم عنوان المصادقة)
  */
 
 import axios from 'axios';
 
+const AUTH_BASE_DEFAULT = 'https://api.thecleanlife.dev';
+
+/** عنوان API المصادقة - من .env (NEXT_PUBLIC_AUTH_API_BASE_URL) */
 export const AUTH_API_BASE_URL =
-  process.env.NEXT_PUBLIC_AUTH_API_BASE_URL || 'https://api.thecleanlife.dev';
+  process.env.NEXT_PUBLIC_AUTH_API_BASE_URL ?? AUTH_BASE_DEFAULT;
+
+/** عنوان API العام - من .env (NEXT_PUBLIC_API_BASE_URL)، وإذا لم يُعرّف يُستخدم عنوان المصادقة */
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5050';
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? AUTH_API_BASE_URL;
 
 const TOKEN_STORAGE_KEY = 'auth_token';
 
@@ -88,14 +93,14 @@ export const apiConfig = {
   },
 } as const;
 
-/** إنشاء Axios instance للباكند المحلي (باقي الـ endpoints) */
+/** Axios instance لبقية الـ endpoints - base من .env (NEXT_PUBLIC_API_BASE_URL) */
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: apiConfig.timeout,
   headers: apiConfig.headers,
 });
 
-/** إنشاء Axios instance لـ OTP, auth, users/profile */
+/** Axios instance للمصادقة والملف الشخصي و FCM - base من .env (NEXT_PUBLIC_AUTH_API_BASE_URL) */
 const authApi = axios.create({
   baseURL: AUTH_API_BASE_URL,
   timeout: apiConfig.timeout,

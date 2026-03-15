@@ -125,6 +125,15 @@ function mapProfileToAuthUser(data: unknown): AuthUser {
 }
 
 /**
+ * تحديث FCM token للمستخدم المسجل
+ * يستدعي: PUT /users/:id مع body: { fcmToken }
+ * يُستخدم بعد تسجيل الدخول لحفظ توكن الإشعارات
+ */
+export async function updateUserFcmToken(userId: string, fcmToken: string): Promise<void> {
+  await authApi.put(`${USERS_ENDPOINT}/${userId}`, { fcmToken });
+}
+
+/**
  * تسجيل الخروج (إبطال التوكن)
  */
 export async function logout(): Promise<void> {

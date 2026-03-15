@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
-import Script from 'next/script';
 import { IBM_Plex_Sans_Arabic, Tajawal } from 'next/font/google';
 import './globals.css';
 import { NotificationProvider } from '@/components/ui/Notifications';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { FCMTokenProvider } from '@/components/firebase/FCMTokenProvider';
+import { FirebaseListener } from '@/components/firebase/FirebaseListener';
 
 // استخدام خط IBM Plex Sans Arabic كبديل احترافي
 // يمكن استبداله بـ ExpoArabic المحلي عند توفره في /public/fonts/
@@ -37,7 +38,10 @@ export default function RootLayout({
       <body className={`${arabicFont.className} antialiased`}>
         <AuthProvider>
           <NotificationProvider>
-            {children}
+            <FCMTokenProvider>
+              <FirebaseListener />
+              {children}
+            </FCMTokenProvider>
           </NotificationProvider>
         </AuthProvider>
       </body>
